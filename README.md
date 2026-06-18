@@ -45,6 +45,17 @@ This pattern scales: add more libs to `src/libs/`, more Python services to `src/
 
 ---
 
+## Services
+
+| Service | Type | Dockerfile | Local port |
+|---------|------|-----------|-----------|
+| `hello_api` | FastAPI | `Dockerfile.hello_api` | 8000 |
+| `db_api` | FastAPI + Neon PostgreSQL | `Dockerfile.db_api` | 8001 |
+| `hello_ui` | React + Vite | — (Vercel) | 5173 |
+| `db_ui` | React + Vite | — (Vercel) | 5173 |
+
+---
+
 ## Stack
 
 | Layer | Tech | Hosting |
@@ -123,5 +134,28 @@ npm run dev
 ### CI
 
 GitHub Actions runs on every push and PR:
-- **Python job**: `uv sync` → `pytest`
-- **TypeScript job**: `npm ci` → `tsc` typecheck → `vite build`
+- **Python job**: `uv sync` → `pytest` (all services, SQLite in-memory for db_api)
+- **TypeScript job**: matrix over `hello_ui` and `db_ui` — `npm ci` → `tsc` typecheck → `vite build`
+
+---
+
+## Adding a new service
+
+### Python service → Railway
+
+1. Create `Dockerfile.<service_name>` at repo root (copy from `Dockerfile.hello_api`, change the pip install path)
+2. Add the service to the uv workspace in root `pyproject.toml`
+3. In Railway dashboard → your project → **New Service** → **GitHub Repo** → same repo
+4. In the new service settings:
+   - **Dockerfile path**: `Dockerfile.<service_name>`
+   - **Start command**: `sh -c 'python -m uvicorn <service>.main:app --host 0.0.0.0 --port $PORT'`
+   - Add any required env vars (e.g. `DATABASE_URL` from Neon)
+5. Done — all future pushes and PR environments deploy this service automatically alongside existing ones
+
+### TypeScript UI → Vercel
+
+1. Scaffold new app under `src/services/typescript/<ui_name>/` (copy from `hello_ui` or `db_ui`)
+2. In Vercel dashboard → **Add New Project** → import same GitHub repo
+3. Set **Root Directory** = `src/services/typescript/<ui_name>`
+4. Add env var `VITE_API_URL` = Railway public domain for the paired API service
+5. Done — all future pushes and Vercel preview deployments are fully automatic
