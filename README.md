@@ -113,7 +113,7 @@ npm run dev
 
 ## Deploy
 
-**Dashboards:** [Railway](https://railway.com/project/1edb5667-6f5c-44c5-a143-22dcea5daed6) · [Vercel](https://vercel.com/tradingstrategies1929/trading-strategies)
+**Dashboards:** [Railway](https://railway.com/project/1edb5667-6f5c-44c5-a143-22dcea5daed6) · [Vercel](https://vercel.com/tradingstrategies1929/trading-strategies) · [Neon](https://console.neon.tech/app/projects/jolly-term-01734691)
 
 ### Opening a PR
 

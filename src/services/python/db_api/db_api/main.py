@@ -49,6 +49,19 @@ class ItemOut(BaseModel):
     value: float
 
 
+@app.get("/")
+def index() -> dict:
+    return {
+        "service": "db_api",
+        "endpoints": [
+            {"method": "GET",  "path": "/",       "description": "List available endpoints"},
+            {"method": "GET",  "path": "/health",  "description": "Health check"},
+            {"method": "GET",  "path": "/items",   "description": "List all items"},
+            {"method": "POST", "path": "/items",   "description": "Create an item — body: {name: str, value: float}"},
+        ],
+    }
+
+
 @app.get("/health")
 def health() -> dict[str, str]:
     return {"status": "ok"}
