@@ -1,0 +1,5 @@
+[tool.uv.workspace]
+members = [
+    "src/libs/hello_lib",
+    "src/services/python/hello_api",
+]

@@ -1,0 +1,22 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+*.egg-info/
+dist/
+.pytest_cache/
+
+# uv
+uv.lock
+
+# Node
+node_modules/
+.vite/
+
+# Vite local overrides (env files with secrets or machine-specific values)
+# .env.development and .env.production are committed — they contain only URLs, no secrets
+.env.local
+.env.*.local
+
+# OS
+.DS_Store
