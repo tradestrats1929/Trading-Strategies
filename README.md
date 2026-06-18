@@ -102,23 +102,22 @@ npm run dev
 
 ## Deploy
 
-### Railway — Python services
+**Dashboards:** [Railway](https://railway.com/project/1edb5667-6f5c-44c5-a143-22dcea5daed6) · [Vercel](https://vercel.com/tradingstrategies1929/trading-strategies)
 
-1. New Project → Deploy from GitHub → select this repo
-2. Root Directory: `.` (repo root)
-3. Railway reads `railway.toml` (sets start command) and `pyproject.toml` automatically
-4. Add env vars in Railway dashboard:
-   - `VITE_API_URL = https://${{RAILWAY_PUBLIC_DOMAIN}}` (injected into Vercel via integration)
-   - any other API keys the service needs
-5. Every push to `main` auto-deploys; PRs get isolated environments automatically
+### Opening a PR
 
-### Vercel — TypeScript services
+1. Push your branch and open a PR against `main` on GitHub
+2. GitHub Actions runs CI (Python tests + TypeScript typecheck/build) — must pass
+3. **Railway** automatically spins up an isolated PR environment for the Python API
+4. **Vercel** automatically builds a preview deployment for the UI — Railway injects the correct `VITE_API_URL` for that PR environment via the integration
+5. Both preview URLs appear in the PR checks on GitHub — use them to test your changes end-to-end before merging
 
-1. New Project → Import from GitHub → select this repo
-2. Root Directory: `src/services/typescript/hello_ui`
-3. Vercel auto-detects Vite; build command `npm run build`, output `dist`
-4. `VITE_API_URL` is injected automatically by Railway via the Vercel integration — no hardcoding needed
-5. Every push to `main` auto-deploys
+### Merging to main
+
+1. Merge the PR — Railway and Vercel both deploy to production automatically
+2. Confirm in the Railway dashboard that the production deployment went green
+3. Confirm on the Vercel dashboard that the production build succeeded
+4. Hit the [production UI](https://trading-strategies-eight.vercel.app) to verify
 
 ### CI
 
