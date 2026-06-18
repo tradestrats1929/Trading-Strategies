@@ -28,7 +28,7 @@ export default function App() {
       {data && <p>{data.message}</p>}
       {!data && !error && <p>Loading…</p>}
       <p style={{ color: 'grey', fontSize: '0.8rem' }}>
-        API: {API_URL} {data ? `(${data.env})` : ''}
+        API: {API_URL}
       </p>
     </main>
   )
