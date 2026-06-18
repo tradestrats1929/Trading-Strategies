@@ -1,2 +1,2 @@
 [deploy]
-startCommand = "APP_ENV=production .venv/bin/uvicorn hello_api.main:app --host 0.0.0.0 --port $PORT"
+startCommand = "APP_ENV=production python -m uvicorn hello_api.main:app --host 0.0.0.0 --port $PORT"
