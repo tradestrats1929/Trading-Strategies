@@ -2,4 +2,4 @@
 nixPkgs = ["python312", "uv"]
 
 [phases.install]
-cmds = ["uv sync --frozen"]
+cmds = ["UV_SYSTEM_PYTHON=1 uv sync --frozen"]
