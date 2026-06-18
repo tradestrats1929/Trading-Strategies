@@ -4,10 +4,11 @@ const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:8000'
 
 interface HelloResponse {
   message: string
+  env: string
 }
 
 export default function App() {
-  const [message, setMessage] = useState<string | null>(null)
+  const [data, setData] = useState<HelloResponse | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -16,7 +17,7 @@ export default function App() {
         if (!r.ok) throw new Error(`HTTP ${r.status}`)
         return r.json() as Promise<HelloResponse>
       })
-      .then((data) => setMessage(data.message))
+      .then(setData)
       .catch((err: Error) => setError(err.message))
   }, [])
 
@@ -24,8 +25,11 @@ export default function App() {
     <main style={{ fontFamily: 'sans-serif', padding: '2rem' }}>
       <h1>Trading Strategies</h1>
       {error && <p style={{ color: 'red' }}>API error: {error}</p>}
-      {message && <p>{message}</p>}
-      {!message && !error && <p>Loading…</p>}
+      {data && <p>{data.message}</p>}
+      {!data && !error && <p>Loading…</p>}
+      <p style={{ color: 'grey', fontSize: '0.8rem' }}>
+        API: {API_URL} {data ? `(${data.env})` : ''}
+      </p>
     </main>
   )
 }
