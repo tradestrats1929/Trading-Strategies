@@ -65,7 +65,7 @@ Set `APP_ENV` as a prefix to any command:
 
 ```bash
 APP_ENV=local uv run uvicorn hello_api.main:app --reload   # default; omit APP_ENV for same effect
-APP_ENV=production uvicorn hello_api.main:app --port $PORT # set automatically by Procfile on Railway
+APP_ENV=production .venv/bin/uvicorn hello_api.main:app --port $PORT # set automatically by railway.toml
 ```
 
 `hello_lib.config.get_service_urls()` returns localhost URLs in `local` and reads required env vars (`HELLO_API_URL`, etc.) in `production`.
@@ -106,18 +106,18 @@ npm run dev
 
 1. New Project → Deploy from GitHub → select this repo
 2. Root Directory: `.` (repo root)
-3. Railway reads `Procfile` (sets `APP_ENV=production`) and `pyproject.toml` automatically
+3. Railway reads `railway.toml` (sets start command) and `pyproject.toml` automatically
 4. Add env vars in Railway dashboard:
-   - `HELLO_API_URL` = this service's own Railway URL (used for inter-service calls)
+   - `VITE_API_URL = https://${{RAILWAY_PUBLIC_DOMAIN}}` (injected into Vercel via integration)
    - any other API keys the service needs
-5. Every push to `main` auto-deploys
+5. Every push to `main` auto-deploys; PRs get isolated environments automatically
 
 ### Vercel — TypeScript services
 
 1. New Project → Import from GitHub → select this repo
 2. Root Directory: `src/services/typescript/hello_ui`
 3. Vercel auto-detects Vite; build command `npm run build`, output `dist`
-4. Update `src/services/typescript/hello_ui/.env.production` with the Railway URL, then push
+4. `VITE_API_URL` is injected automatically by Railway via the Vercel integration — no hardcoding needed
 5. Every push to `main` auto-deploys
 
 ### CI
