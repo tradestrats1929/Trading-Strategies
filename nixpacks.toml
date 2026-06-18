@@ -1,5 +1,0 @@
-[phases.install]
-cmds = [
-    "curl -LsSf https://astral.sh/uv/install.sh | sh",
-    "/root/.local/bin/uv pip install --system -e src/libs/hello_lib -e src/services/python/hello_api"
-]
