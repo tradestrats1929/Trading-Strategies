@@ -2,4 +2,4 @@
 nixPkgs = ["python312"]
 
 [phases.install]
-cmds = ["pip install -e src/libs/hello_lib -e src/services/python/hello_api"]
+cmds = ["python -m pip install -e src/libs/hello_lib -e src/services/python/hello_api"]
