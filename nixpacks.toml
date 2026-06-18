@@ -1,5 +1,5 @@
 [phases.setup]
-nixPkgs = ["python312", "uv"]
+nixPkgs = ["python312"]
 
 [phases.install]
-cmds = ["UV_SYSTEM_PYTHON=1 uv sync --frozen"]
+cmds = ["pip install -e src/libs/hello_lib -e src/services/python/hello_api"]
