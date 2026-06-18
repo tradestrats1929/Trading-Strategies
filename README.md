@@ -106,7 +106,7 @@ npm run dev
 
 ### Opening a PR
 
-1. Push your branch and open a PR against `main` on GitHub
+1. Push your branch and open a PR against `main` on GitHub — PR must be opened by the **tradestrats1929** GitHub account for Railway to create the PR environment
 2. GitHub Actions runs CI (Python tests + TypeScript typecheck/build) — must pass
 3. **Railway** automatically spins up an isolated PR environment for the Python API
 4. In Railway → Project Settings → Integrations → Vercel, set **Preview environment** to the newly created PR environment (e.g. `Trading-Strategies-pr-N`) — this wires the correct Railway URL into the Vercel preview build
