@@ -1,5 +1,2 @@
-[phases.setup]
-nixPkgs = ["python312"]
-
 [phases.install]
-cmds = ["python -m pip install -e src/libs/hello_lib -e src/services/python/hello_api"]
+cmds = ["pip install -e src/libs/hello_lib -e src/services/python/hello_api"]
