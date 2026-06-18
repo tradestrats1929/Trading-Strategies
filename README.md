@@ -65,7 +65,7 @@ Set `APP_ENV` as a prefix to any command:
 
 ```bash
 APP_ENV=local uv run uvicorn hello_api.main:app --reload   # default; omit APP_ENV for same effect
-APP_ENV=production uvicorn hello_api.main:app --port $PORT # set automatically by Procfile on Railway
+APP_ENV=production .venv/bin/uvicorn hello_api.main:app --port $PORT # set automatically by railway.toml
 ```
 
 `hello_lib.config.get_service_urls()` returns localhost URLs in `local` and reads required env vars (`HELLO_API_URL`, etc.) in `production`.
@@ -102,23 +102,23 @@ npm run dev
 
 ## Deploy
 
-### Railway — Python services
+**Dashboards:** [Railway](https://railway.com/project/1edb5667-6f5c-44c5-a143-22dcea5daed6) · [Vercel](https://vercel.com/tradingstrategies1929/trading-strategies)
 
-1. New Project → Deploy from GitHub → select this repo
-2. Root Directory: `.` (repo root)
-3. Railway reads `Procfile` (sets `APP_ENV=production`) and `pyproject.toml` automatically
-4. Add env vars in Railway dashboard:
-   - `HELLO_API_URL` = this service's own Railway URL (used for inter-service calls)
-   - any other API keys the service needs
-5. Every push to `main` auto-deploys
+### Opening a PR
 
-### Vercel — TypeScript services
+1. Push your branch and open a PR against `main` on GitHub
+2. GitHub Actions runs CI (Python tests + TypeScript typecheck/build) — must pass
+3. **Railway** automatically spins up an isolated PR environment for the Python API
+4. In Railway → Project Settings → Integrations → Vercel, set **Preview environment** to the newly created PR environment (e.g. `Trading-Strategies-pr-N`) — this wires the correct Railway URL into the Vercel preview build
+5. **Vercel** automatically builds a preview deployment for the UI with the correct `VITE_API_URL` injected
+6. Both preview URLs appear in the PR checks on GitHub — use them to test your changes end-to-end before merging
 
-1. New Project → Import from GitHub → select this repo
-2. Root Directory: `src/services/typescript/hello_ui`
-3. Vercel auto-detects Vite; build command `npm run build`, output `dist`
-4. Update `src/services/typescript/hello_ui/.env.production` with the Railway URL, then push
-5. Every push to `main` auto-deploys
+### Merging to main
+
+1. Merge the PR — Railway and Vercel both deploy to production automatically
+2. Confirm in the Railway dashboard that the production deployment went green
+3. Confirm on the Vercel dashboard that the production build succeeded
+4. Hit the [production UI](https://trading-strategies-eight.vercel.app) to verify
 
 ### CI
 

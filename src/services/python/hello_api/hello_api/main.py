@@ -12,6 +12,11 @@ app.add_middleware(
 )
 
 
+@app.get("/health")
+def health() -> dict[str, str]:
+    return {"status": "ok", "env": get_env()}
+
+
 @app.get("/hello")
 def hello(name: str = "World") -> dict[str, str]:
     return {"message": greet(name), "env": get_env()}
