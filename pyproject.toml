@@ -1,3 +1,6 @@
+[tool.pytest.ini_options]
+addopts = "--import-mode=importlib"
+
 [tool.uv.workspace]
 members = [
     "src/libs/hello_lib",

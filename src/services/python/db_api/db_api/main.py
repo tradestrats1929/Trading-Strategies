@@ -82,6 +82,6 @@ def create_item(item: ItemIn) -> dict:
                 items_table.c.id, items_table.c.name, items_table.c.value
             )
         )
-        conn.commit()
         row = result.mappings().one()
+        conn.commit()
     return dict(row)
