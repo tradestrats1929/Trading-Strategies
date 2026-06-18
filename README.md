@@ -109,8 +109,9 @@ npm run dev
 1. Push your branch and open a PR against `main` on GitHub
 2. GitHub Actions runs CI (Python tests + TypeScript typecheck/build) — must pass
 3. **Railway** automatically spins up an isolated PR environment for the Python API
-4. **Vercel** automatically builds a preview deployment for the UI — Railway injects the correct `VITE_API_URL` for that PR environment via the integration
-5. Both preview URLs appear in the PR checks on GitHub — use them to test your changes end-to-end before merging
+4. In Railway → Project Settings → Integrations → Vercel, set **Preview environment** to the newly created PR environment (e.g. `Trading-Strategies-pr-N`) — this wires the correct Railway URL into the Vercel preview build
+5. **Vercel** automatically builds a preview deployment for the UI with the correct `VITE_API_URL` injected
+6. Both preview URLs appear in the PR checks on GitHub — use them to test your changes end-to-end before merging
 
 ### Merging to main
 
