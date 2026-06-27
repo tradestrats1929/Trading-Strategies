@@ -4,11 +4,11 @@ services:
     restart: unless-stopped
     ports:
       - "127.0.0.1:8000:8000"
-    command: python -m uvicorn hello_api.main:app --host 0.0.0.0 --port 8000 --root-path /api/hello
+    command: python -m uvicorn hello_api.main:app --host 0.0.0.0 --port 8000 --root-path /prod/api/hello
 
   txn_cost_api:
     image: ghcr.io/tradestrats1929/trading-strategies/txn-cost-api:latest
     restart: unless-stopped
     ports:
       - "127.0.0.1:8002:8002"
-    command: python -m uvicorn txn_cost_api.main:app --host 0.0.0.0 --port 8002 --root-path /api/txn-cost
+    command: python -m uvicorn txn_cost_api.main:app --host 0.0.0.0 --port 8002 --root-path /prod/api/txn-cost

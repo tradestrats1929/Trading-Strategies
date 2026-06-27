@@ -1,0 +1,14 @@
+services:
+  hello_api_dev:
+    image: ghcr.io/tradestrats1929/trading-strategies/hello-api:dev
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8010:8010"
+    command: python -m uvicorn hello_api.main:app --host 0.0.0.0 --port 8010 --root-path /dev/api/hello
+
+  txn_cost_api_dev:
+    image: ghcr.io/tradestrats1929/trading-strategies/txn-cost-api:dev
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8012:8012"
+    command: python -m uvicorn txn_cost_api.main:app --host 0.0.0.0 --port 8012 --root-path /dev/api/txn-cost
