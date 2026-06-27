@@ -8,3 +8,4 @@ RUN pip install --no-cache-dir -e src/libs/txn_cost -e src/services/python/txn_c
 ENV APP_ENV=production
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
+ENV PYTHONHASHSEED=random
