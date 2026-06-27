@@ -180,10 +180,15 @@ jobs:
             fi
 
             if [[ "$INFRA_CHANGED" == "true" ]]; then
-              echo "→ Reloading nginx"
-              sudo cp /tmp/nginx.conf /etc/nginx/sites-available/trading-strategies.conf
-              sudo ln -sf /etc/nginx/sites-available/trading-strategies.conf /etc/nginx/sites-enabled/trading-strategies.conf
-              sudo nginx -t && sudo systemctl reload nginx
+              if [[ -f /tmp/nginx.conf ]]; then
+                echo "→ Reloading nginx"
+                sudo cp /tmp/nginx.conf /etc/nginx/sites-available/trading-strategies.conf
+                sudo ln -sf /etc/nginx/sites-available/trading-strategies.conf /etc/nginx/sites-enabled/trading-strategies.conf
+                sudo nginx -t && sudo systemctl reload nginx
+              else
+                echo "⚠ /tmp/nginx.conf not found — scp may have failed; skipping nginx reload"
+                exit 1
+              fi
             fi
 
             echo "✓ Deploy complete"

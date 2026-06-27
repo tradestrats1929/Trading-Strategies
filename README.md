@@ -13,7 +13,6 @@ Monorepo for trading fund infrastructure. Python microservices on Oracle Cloud (
 | db_api docs | https://trading-strategies.duckdns.org/api/db/docs |
 | txn_cost_api | https://trading-strategies.duckdns.org/api/txn-cost/ |
 | txn_cost_api docs | https://trading-strategies.duckdns.org/api/txn-cost/docs |
-| Neon dashboard | https://console.neon.tech/app/projects/jolly-term-01734691 |
 
 ---
 
@@ -72,7 +71,6 @@ npm install && npm run dev
 | Container runtime | Docker Compose |
 | Image registry | GitHub Container Registry (GHCR) |
 | Reverse proxy | Nginx |
-| Database | Neon PostgreSQL (free tier) |
 
 ### OCI server layout
 
