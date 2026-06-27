@@ -6,7 +6,7 @@ import TxnCost from './pages/TxnCost'
 
 export default function App() {
   return (
-    <BrowserRouter>
+    <BrowserRouter basename={import.meta.env.BASE_URL}>
       <Nav />
       <Routes>
         <Route path="/"         element={<Landing />} />

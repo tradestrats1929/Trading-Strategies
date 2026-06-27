@@ -5,9 +5,9 @@ const SERVICES = [
   { path: '/txn-cost', label: 'Txn Cost', api: 'txn-cost' },
 ]
 
-const BASE = import.meta.env.VITE_HELLO_API_URL?.includes('localhost')
-  ? null
-  : 'https://trading-strategies.duckdns.org'
+const isLocal = import.meta.env.VITE_HELLO_API_URL?.includes('localhost')
+const envPrefix = import.meta.env.BASE_URL === '/' ? '' : import.meta.env.BASE_URL.replace(/\/$/, '')
+const BASE = isLocal ? null : `https://trading-strategies.duckdns.org${envPrefix}`
 
 export default function Nav() {
   return (
