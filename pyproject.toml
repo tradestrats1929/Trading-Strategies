@@ -8,4 +8,5 @@ members = [
     "src/libs/txn_cost",
     "src/services/python/hello_api",
     "src/services/python/db_api",
+    "src/services/python/txn_cost_api",
 ]

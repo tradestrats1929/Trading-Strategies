@@ -9,6 +9,7 @@ members = [
     "hello-api",
     "hello-lib",
     "txn-cost",
+    "txn-cost-api",
 ]
 
 [[package]]
@@ -609,6 +610,35 @@ dev = [
 
 [package.metadata.requires-dev]
 dev = [{ name = "pytest", specifier = ">=8.0" }]
+
+[[package]]
+name = "txn-cost-api"
+version = "0.1.0"
+source = { editable = "src/services/python/txn_cost_api" }
+dependencies = [
+    { name = "fastapi" },
+    { name = "txn-cost" },
+    { name = "uvicorn", extra = ["standard"] },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "httpx" },
+    { name = "pytest" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "fastapi", specifier = ">=0.115" },
+    { name = "txn-cost", editable = "src/libs/txn_cost" },
+    { name = "uvicorn", extras = ["standard"], specifier = ">=0.32" },
+]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "httpx", specifier = ">=0.27" },
+    { name = "pytest", specifier = ">=8.0" },
+]
 
 [[package]]
 name = "typing-extensions"
