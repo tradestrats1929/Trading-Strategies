@@ -9,8 +9,6 @@ Monorepo for trading fund infrastructure. Python microservices on Oracle Cloud (
 | Master UI | https://trading-strategies.duckdns.org |
 | hello_api | https://trading-strategies.duckdns.org/api/hello/ |
 | hello_api docs | https://trading-strategies.duckdns.org/api/hello/docs |
-| db_api | https://trading-strategies.duckdns.org/api/db/ |
-| db_api docs | https://trading-strategies.duckdns.org/api/db/docs |
 | txn_cost_api | https://trading-strategies.duckdns.org/api/txn-cost/ |
 | txn_cost_api docs | https://trading-strategies.duckdns.org/api/txn-cost/docs |
 
@@ -23,7 +21,6 @@ Monorepo for trading fund infrastructure. Python microservices on Oracle Cloud (
 | Service | Path | Port (local) | Dockerfile |
 |---|---|---|---|
 | hello_api | `src/services/python/hello_api/` | 8000 | `Dockerfile.hello_api` |
-| db_api | `src/services/python/db_api/` | 8001 | `Dockerfile.db_api` |
 | txn_cost_api | `src/services/python/txn_cost_api/` | 8002 | `Dockerfile.txn_cost_api` |
 
 ### Shared libs
@@ -31,7 +28,6 @@ Monorepo for trading fund infrastructure. Python microservices on Oracle Cloud (
 | Lib | Path | Used by |
 |---|---|---|
 | hello_lib | `src/libs/hello_lib/` | hello_api |
-| db_helpers | `src/libs/db_helpers/` | db_api |
 | txn_cost | `src/libs/txn_cost/` | txn_cost_api |
 
 ### UI
@@ -50,7 +46,6 @@ uv sync --all-groups
 
 # Start all Python services
 uv run uvicorn hello_api.main:app --port 8000 &
-uv run uvicorn db_api.main:app --port 8001 &
 uv run uvicorn txn_cost_api.main:app --port 8002 &
 
 # Start master UI (reads localhost URLs from .env.development)
@@ -76,8 +71,7 @@ npm install && npm run dev
 
 ```
 /opt/trading-strategies/
-├── docker-compose.yml   ← managed by CI deploy
-└── .env                 ← DATABASE_URL (set once manually, never committed)
+└── docker-compose.yml   ← managed by CI deploy
 
 /var/www/trading-strategies-ui/  ← UI static dist, managed by CI deploy
 

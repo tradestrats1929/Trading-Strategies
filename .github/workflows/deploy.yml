@@ -127,7 +127,7 @@ jobs:
           source: "docker-compose.yml"
           target: "/opt/trading-strategies/"
 
-      # Push nginx config if infra changed
+      # Push nginx config if infra changed (strip_components:1 drops the deploy/ prefix)
       - uses: appleboy/scp-action@v0.1.7
         if: needs.changes.outputs.infra == 'true'
         with:
@@ -136,6 +136,7 @@ jobs:
           key: ${{ secrets.OCI_SSH_PRIVATE_KEY }}
           source: "deploy/nginx.conf"
           target: "/tmp/"
+          strip_components: 1
 
       # Push UI dist if it was built
       - uses: appleboy/scp-action@v0.1.7
