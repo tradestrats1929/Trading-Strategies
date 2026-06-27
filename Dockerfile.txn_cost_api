@@ -1,0 +1,8 @@
+FROM python:3.12-slim
+
+WORKDIR /app
+COPY . .
+
+RUN pip install --no-cache-dir -e src/libs/txn_cost -e src/services/python/txn_cost_api
+
+ENV APP_ENV=production
