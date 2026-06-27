@@ -12,6 +12,17 @@ app.add_middleware(
 )
 
 
+@app.get("/")
+def index() -> dict:
+    return {
+        "service": "hello_api",
+        "endpoints": [
+            {"method": "GET", "path": "/health", "description": "Health check"},
+            {"method": "GET", "path": "/hello",  "description": "Greet by name (?name=...)"},
+        ],
+    }
+
+
 @app.get("/health")
 def health() -> dict[str, str]:
     return {"status": "ok", "env": get_env()}

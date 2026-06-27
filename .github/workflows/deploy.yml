@@ -1,0 +1,190 @@
+name: Deploy to OCI
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  # ── Phase 1: detect which parts of the repo changed ──────────────────────
+  changes:
+    name: Detect changes
+    runs-on: ubuntu-latest
+    outputs:
+      hello_api:    ${{ steps.filter.outputs.hello_api }}
+      txn_cost_api: ${{ steps.filter.outputs.txn_cost_api }}
+      ui:           ${{ steps.filter.outputs.ui }}
+      infra:        ${{ steps.filter.outputs.infra }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            hello_api:
+              - 'src/libs/hello_lib/**'
+              - 'src/services/python/hello_api/**'
+              - 'Dockerfile.hello_api'
+            txn_cost_api:
+              - 'src/libs/txn_cost/**'
+              - 'src/services/python/txn_cost_api/**'
+              - 'Dockerfile.txn_cost_api'
+            ui:
+              - 'src/services/typescript/trading-strategies-ui/**'
+            infra:
+              - 'docker-compose.yml'
+              - 'deploy/nginx.conf'
+
+  # ── Phase 2a: build Python service images (conditional) ──────────────────
+  build-hello-api:
+    name: Build hello-api image
+    needs: changes
+    if: needs.changes.outputs.hello_api == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile.hello_api
+          push: true
+          tags: ghcr.io/tradestrats1929/trading-strategies/hello-api:latest
+
+  build-txn-cost-api:
+    name: Build txn-cost-api image
+    needs: changes
+    if: needs.changes.outputs.txn_cost_api == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile.txn_cost_api
+          push: true
+          tags: ghcr.io/tradestrats1929/trading-strategies/txn-cost-api:latest
+
+  # ── Phase 2b: build master UI (conditional) ──────────────────────────────
+  build-ui:
+    name: Build master UI
+    needs: changes
+    if: needs.changes.outputs.ui == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: src/services/typescript/trading-strategies-ui/package-lock.json
+      - name: Install deps
+        run: npm ci
+        working-directory: src/services/typescript/trading-strategies-ui
+      - name: Build
+        run: npm run build
+        working-directory: src/services/typescript/trading-strategies-ui
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ui-dist
+          path: src/services/typescript/trading-strategies-ui/dist
+          retention-days: 1
+
+  # ── Phase 3: deploy to OCI ────────────────────────────────────────────────
+  deploy:
+    name: Deploy to OCI
+    needs: [changes, build-hello-api, build-txn-cost-api, build-ui]
+    if: always() && !cancelled() && !contains(needs.*.result, 'failure')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        if: needs.changes.outputs.ui == 'true'
+        with:
+          name: ui-dist
+          path: ui-dist
+        continue-on-error: true
+
+      # Always push latest docker-compose.yml to server
+      - uses: appleboy/scp-action@v0.1.7
+        with:
+          host: 140.245.15.238
+          username: ubuntu
+          key: ${{ secrets.OCI_SSH_PRIVATE_KEY }}
+          source: "docker-compose.yml"
+          target: "/opt/trading-strategies/"
+
+      # Push nginx config if infra changed
+      - uses: appleboy/scp-action@v0.1.7
+        if: needs.changes.outputs.infra == 'true'
+        with:
+          host: 140.245.15.238
+          username: ubuntu
+          key: ${{ secrets.OCI_SSH_PRIVATE_KEY }}
+          source: "deploy/nginx.conf"
+          target: "/tmp/"
+
+      # Push UI dist if it was built
+      - uses: appleboy/scp-action@v0.1.7
+        if: needs.changes.outputs.ui == 'true'
+        with:
+          host: 140.245.15.238
+          username: ubuntu
+          key: ${{ secrets.OCI_SSH_PRIVATE_KEY }}
+          source: "ui-dist/"
+          target: "/var/www/trading-strategies-ui/"
+          strip_components: 1
+
+      # SSH: pull new images, restart changed containers, reload nginx
+      - uses: appleboy/ssh-action@v1
+        env:
+          GHCR_TOKEN:        ${{ secrets.GITHUB_TOKEN }}
+          HELLO_API_CHANGED: ${{ needs.changes.outputs.hello_api }}
+          TXN_COST_CHANGED:  ${{ needs.changes.outputs.txn_cost_api }}
+          INFRA_CHANGED:     ${{ needs.changes.outputs.infra }}
+        with:
+          host: 140.245.15.238
+          username: ubuntu
+          key: ${{ secrets.OCI_SSH_PRIVATE_KEY }}
+          envs: GHCR_TOKEN,HELLO_API_CHANGED,TXN_COST_CHANGED,INFRA_CHANGED
+          script: |
+            set -e
+
+            echo "$GHCR_TOKEN" | docker login ghcr.io -u tradestrats1929 --password-stdin
+
+            cd /opt/trading-strategies
+
+            if [[ "$HELLO_API_CHANGED" == "true" ]]; then
+              echo "→ Deploying hello_api"
+              docker compose pull hello_api
+              docker compose up -d hello_api
+            fi
+
+            if [[ "$TXN_COST_CHANGED" == "true" ]]; then
+              echo "→ Deploying txn_cost_api"
+              docker compose pull txn_cost_api
+              docker compose up -d txn_cost_api
+            fi
+
+            if [[ "$INFRA_CHANGED" == "true" ]]; then
+              echo "→ Reloading nginx"
+              sudo cp /tmp/nginx.conf /etc/nginx/sites-available/trading-strategies.conf
+              sudo ln -sf /etc/nginx/sites-available/trading-strategies.conf /etc/nginx/sites-enabled/trading-strategies.conf
+              sudo nginx -t && sudo systemctl reload nginx
+            fi
+
+            echo "✓ Deploy complete"
+            docker compose ps

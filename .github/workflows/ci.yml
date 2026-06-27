@@ -20,14 +20,14 @@ jobs:
         run: uv sync --all-groups
 
       - name: Run tests
-        run: uv run pytest src/libs/txn_cost/tests/ src/services/python/hello_api/tests/ src/services/python/db_api/tests/ src/services/python/txn_cost_api/tests/ -v
+        run: uv run pytest src/libs/txn_cost/tests/ src/services/python/hello_api/tests/ src/services/python/txn_cost_api/tests/ -v
 
   typescript:
     name: TypeScript typecheck
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        app: [hello_ui, db_ui, txn_cost_ui]
+        app: [trading-strategies-ui]
     steps:
       - uses: actions/checkout@v4
 
