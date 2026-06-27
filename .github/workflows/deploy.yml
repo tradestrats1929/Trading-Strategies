@@ -185,6 +185,7 @@ jobs:
                 echo "→ Reloading nginx"
                 sudo cp /tmp/nginx.conf /etc/nginx/sites-available/trading-strategies.conf
                 sudo ln -sf /etc/nginx/sites-available/trading-strategies.conf /etc/nginx/sites-enabled/trading-strategies.conf
+                sudo rm -f /etc/nginx/sites-enabled/default
                 sudo nginx -t && sudo systemctl reload nginx
               else
                 echo "⚠ /tmp/nginx.conf not found — scp may have failed; skipping nginx reload"
