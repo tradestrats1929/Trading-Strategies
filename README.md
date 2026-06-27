@@ -1,161 +1,136 @@
 # Trading Strategies
 
-Monorepo for trading strategy services. Python and TypeScript services share a common library layer and deploy independently via Railway and Vercel.
+Monorepo for trading fund infrastructure. Python microservices on Oracle Cloud (OCI), single React UI served by Nginx.
 
----
+## Live URLs
 
-## Structure
-
-```
-src/
-├── libs/
-│   └── hello_lib/             # Shared Python library
-└── services/
-    ├── python/
-    │   └── hello_api/         # FastAPI REST service
-    └── typescript/
-        └── hello_ui/          # React + Vite frontend
-```
-
-**libs** — reusable Python packages, consumed natively by Python services via uv workspace.  
-**services/python** — each subdirectory is a FastAPI service with its own `pyproject.toml`.  
-**services/typescript** — each subdirectory is a Vite app with its own `package.json`.
-
----
-
-## How the POC services interact
-
-```
-hello_ui  (TypeScript)
-    │  fetch /hello?name=…          via VITE_API_URL (localhost or Railway)
-    ▼
-hello_api  (Python / FastAPI)
-    │  from hello_lib import greet  native uv workspace import
-    ▼
-hello_lib  (Python lib)
-    │  greet(name) → "Hello, {name}! — from hello_lib"
-    └─ get_env() → "local" | "production"
-```
-
-- **hello_lib** holds shared logic (greeting, env config, inter-service URLs). No HTTP involved.
-- **hello_api** imports hello_lib directly and exposes results over REST (`GET /hello`).
-- **hello_ui** calls hello_api over HTTP and renders the response.
-
-This pattern scales: add more libs to `src/libs/`, more Python services to `src/services/python/` (each importing any lib), and point TypeScript services at whichever Python service they need via `VITE_API_URL`.
+| Resource | URL |
+|---|---|
+| Master UI | https://trading-strategies.duckdns.org |
+| hello_api | https://trading-strategies.duckdns.org/api/hello/ |
+| hello_api docs | https://trading-strategies.duckdns.org/api/hello/docs |
+| db_api | https://trading-strategies.duckdns.org/api/db/ |
+| db_api docs | https://trading-strategies.duckdns.org/api/db/docs |
+| txn_cost_api | https://trading-strategies.duckdns.org/api/txn-cost/ |
+| txn_cost_api docs | https://trading-strategies.duckdns.org/api/txn-cost/docs |
+| Neon dashboard | https://console.neon.tech/app/projects/jolly-term-01734691 |
 
 ---
 
 ## Services
 
-| Service | Type | Dockerfile | Local port |
-|---------|------|-----------|-----------|
-| `hello_api` | FastAPI | `Dockerfile.hello_api` | 8000 |
-| `db_api` | FastAPI + Neon PostgreSQL | `Dockerfile.db_api` | 8001 |
-| `hello_ui` | React + Vite | — (Vercel) | 5173 |
-| `db_ui` | React + Vite | — (Vercel) | 5173 |
+### Python APIs
+
+| Service | Path | Port (local) | Dockerfile |
+|---|---|---|---|
+| hello_api | `src/services/python/hello_api/` | 8000 | `Dockerfile.hello_api` |
+| db_api | `src/services/python/db_api/` | 8001 | `Dockerfile.db_api` |
+| txn_cost_api | `src/services/python/txn_cost_api/` | 8002 | `Dockerfile.txn_cost_api` |
+
+### Shared libs
+
+| Lib | Path | Used by |
+|---|---|---|
+| hello_lib | `src/libs/hello_lib/` | hello_api |
+| db_helpers | `src/libs/db_helpers/` | db_api |
+| txn_cost | `src/libs/txn_cost/` | txn_cost_api |
+
+### UI
+
+| Service | Path | Local port |
+|---|---|---|
+| trading-strategies-ui | `src/services/typescript/trading-strategies-ui/` | 5173 |
 
 ---
 
-## Stack
-
-| Layer | Tech | Hosting |
-|-------|------|---------|
-| Python services | FastAPI · uvicorn · uv workspace | Railway |
-| TypeScript services | React · Vite · TypeScript | Vercel |
-| CI | GitHub Actions | — |
-
----
-
-## Environments
-
-Two environments: `local` and `production`.
-
-### Python services
-
-Set `APP_ENV` as a prefix to any command:
+## Local development
 
 ```bash
-APP_ENV=local uv run uvicorn hello_api.main:app --reload   # default; omit APP_ENV for same effect
-APP_ENV=production .venv/bin/uvicorn hello_api.main:app --port $PORT # set automatically by railway.toml
-```
+# Install Python deps
+uv sync --all-groups
 
-`hello_lib.config.get_service_urls()` returns localhost URLs in `local` and reads required env vars (`HELLO_API_URL`, etc.) in `production`.
+# Start all Python services
+uv run uvicorn hello_api.main:app --port 8000 &
+uv run uvicorn db_api.main:app --port 8001 &
+uv run uvicorn txn_cost_api.main:app --port 8002 &
 
-### TypeScript services
-
-Vite loads the matching `.env` file automatically based on the command:
-
-| Command | Env file loaded | Points to |
-|---------|----------------|-----------|
-| `npm run dev` | `.env.development` | `http://localhost:8000` |
-| `npm run build` | `.env.production` | Railway URL |
-
-Update `src/services/typescript/hello_ui/.env.production` with your Railway URL after first deploy.
-
----
-
-## Run locally
-
-```bash
-# Python API (terminal 1)
-uv sync
-APP_ENV=local uv run uvicorn hello_api.main:app --reload
-# → http://localhost:8000/hello?name=you
-
-# UI (terminal 2)
-cd src/services/typescript/hello_ui
-npm install
-npm run dev
+# Start master UI (reads localhost URLs from .env.development)
+cd src/services/typescript/trading-strategies-ui
+npm install && npm run dev
 # → http://localhost:5173
 ```
 
 ---
 
-## Deploy
+## Infrastructure
 
-**Dashboards:** [Railway](https://railway.com/project/1edb5667-6f5c-44c5-a143-22dcea5daed6) · [Vercel](https://vercel.com/tradingstrategies1929/trading-strategies) · [Neon](https://console.neon.tech/app/projects/jolly-term-01734691)
+| Component | Technology |
+|---|---|
+| Server | Oracle Cloud Always Free — 4 OCPU, 24 GB RAM, Ubuntu 22.04 (ap-mumbai-1) |
+| Domain | DuckDNS — `trading-strategies.duckdns.org` |
+| SSL | Let's Encrypt (auto-renews every 90 days) |
+| Container runtime | Docker Compose |
+| Image registry | GitHub Container Registry (GHCR) |
+| Reverse proxy | Nginx |
+| Database | Neon PostgreSQL (free tier) |
 
-### Opening a PR
+### OCI server layout
 
-1. Push your branch and open a PR against `main` on GitHub — PR must be opened by the **tradestrats1929** GitHub account for Railway to create the PR environment
-2. GitHub Actions runs CI (Python tests + TypeScript typecheck/build) — must pass
-3. **Railway** automatically spins up an isolated PR environment for the Python API
-4. In Railway → Project Settings → Integrations → Vercel, set **Preview environment** to the newly created PR environment (e.g. `Trading-Strategies-pr-N`) — this wires the correct Railway URL into the Vercel preview build
-5. **Vercel** automatically builds a preview deployment for the UI with the correct `VITE_API_URL` injected
-6. Both preview URLs appear in the PR checks on GitHub — use them to test your changes end-to-end before merging
+```
+/opt/trading-strategies/
+├── docker-compose.yml   ← managed by CI deploy
+└── .env                 ← DATABASE_URL (set once manually, never committed)
 
-### Merging to main
+/var/www/trading-strategies-ui/  ← UI static dist, managed by CI deploy
 
-1. Merge the PR — Railway and Vercel both deploy to production automatically
-2. Confirm in the Railway dashboard that the production deployment went green
-3. Confirm on the Vercel dashboard that the production build succeeded
-4. Hit the [production UI](https://trading-strategies-eight.vercel.app) to verify
-
-### CI
-
-GitHub Actions runs on every push and PR:
-- **Python job**: `uv sync` → `pytest` (all services, SQLite in-memory for db_api)
-- **TypeScript job**: matrix over `hello_ui` and `db_ui` — `npm ci` → `tsc` typecheck → `vite build`
+/etc/nginx/sites-available/trading-strategies.conf  ← managed by CI deploy
+```
 
 ---
 
-## Adding a new service
+## CI/CD
 
-### Python service → Railway
+### `ci.yml` — runs on every push and PR
 
-1. Create `Dockerfile.<service_name>` at repo root (copy from `Dockerfile.hello_api`, change the pip install path)
-2. Add the service to the uv workspace in root `pyproject.toml`
-3. In Railway dashboard → your project → **New Service** → **GitHub Repo** → same repo
-4. In the new service settings:
-   - **Dockerfile path**: `Dockerfile.<service_name>`
-   - **Start command**: `sh -c 'python -m uvicorn <service>.main:app --host 0.0.0.0 --port $PORT'`
-   - Add any required env vars (e.g. `DATABASE_URL` from Neon)
-5. Done — all future pushes and PR environments deploy this service automatically alongside existing ones
+- **Python**: `uv sync --all-groups` → `pytest` for all libs and services
+- **TypeScript**: `npm ci` → `tsc --noEmit` → `vite build` for the master UI
 
-### TypeScript UI → Vercel
+### `deploy.yml` — runs on push to `main` only
 
-1. Scaffold new app under `src/services/typescript/<ui_name>/` (copy from `hello_ui` or `db_ui`)
-2. In Vercel dashboard → **Add New Project** → import same GitHub repo
-3. Set **Root Directory** = `src/services/typescript/<ui_name>`
-4. Add env var `VITE_API_URL` = Railway public domain for the paired API service
-5. Done — all future pushes and Vercel preview deployments are fully automatic
+| Phase | What happens |
+|---|---|
+| Detect | `dorny/paths-filter` checks which services/libs/infra changed |
+| Build | Only changed services are rebuilt and pushed to GHCR |
+| Deploy | SSH into OCI → pull new images → restart only changed containers |
+| UI | If UI changed: SCP `dist/` to `/var/www/trading-strategies-ui/` |
+| Nginx | If `deploy/nginx.conf` or `docker-compose.yml` changed: reload Nginx |
+
+Push to main → only the touched service restarts. Unrelated services keep running untouched.
+
+### Required GitHub Secret
+
+| Secret | Value |
+|---|---|
+| `OCI_SSH_PRIVATE_KEY` | Full contents of the OCI private key file |
+
+---
+
+## Adding a new Python service
+
+1. Create `src/services/python/<name>/` with a FastAPI app
+   - Must include `GET /` (returns endpoint list) and `GET /health`
+2. Create `src/libs/<name>/` if a shared lib is needed; add to `pyproject.toml` workspace
+3. Create `Dockerfile.<name>` at repo root — copy pattern from `Dockerfile.hello_api`
+4. Add service block to `docker-compose.yml`:
+   ```yaml
+   <name>:
+     image: ghcr.io/tradestrats1929/trading-strategies/<name>:latest
+     restart: unless-stopped
+     ports: ["127.0.0.1:<port>:<port>"]
+     command: python -m uvicorn <name>.main:app --host 0.0.0.0 --port <port> --root-path /api/<name>
+   ```
+5. Add path filter entry (5 lines) in `.github/workflows/deploy.yml` under the `changes` job
+6. Add build job (copy `build-hello-api` pattern) in `deploy.yml`
+7. Add `location /api/<name>/` proxy block in `deploy/nginx.conf`
+8. Add a card in `src/services/typescript/trading-strategies-ui/src/pages/Landing.tsx`
+9. Push to `main` → CI builds image, pushes to GHCR, SSHs into OCI, starts only that container

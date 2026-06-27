@@ -27,7 +27,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        app: [hello_ui, db_ui, txn_cost_ui]
+        app: [trading-strategies-ui]
     steps:
       - uses: actions/checkout@v4
 
