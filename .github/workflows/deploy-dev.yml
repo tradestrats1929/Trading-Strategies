@@ -1,8 +1,7 @@
-name: Deploy to OCI (prod)
+name: Deploy to OCI (dev)
 
 on:
-  push:
-    branches: [main]
+  pull_request:
 
 permissions:
   contents: read
@@ -35,12 +34,12 @@ jobs:
             ui:
               - 'src/services/typescript/trading-strategies-ui/**'
             infra:
-              - 'docker-compose.prod.yml'
+              - 'docker-compose.dev.yml'
               - 'deploy/nginx.conf'
 
-  # ── Phase 2a: build Python service images (conditional) ──────────────────
+  # ── Phase 2a: build Python service images with :dev tag ──────────────────
   build-hello-api:
-    name: Build hello-api image
+    name: Build hello-api image (dev)
     needs: changes
     if: needs.changes.outputs.hello_api == 'true'
     runs-on: ubuntu-latest
@@ -56,10 +55,10 @@ jobs:
           context: .
           file: Dockerfile.hello_api
           push: true
-          tags: ghcr.io/tradestrats1929/trading-strategies/hello-api:latest
+          tags: ghcr.io/tradestrats1929/trading-strategies/hello-api:dev
 
   build-txn-cost-api:
-    name: Build txn-cost-api image
+    name: Build txn-cost-api image (dev)
     needs: changes
     if: needs.changes.outputs.txn_cost_api == 'true'
     runs-on: ubuntu-latest
@@ -75,14 +74,17 @@ jobs:
           context: .
           file: Dockerfile.txn_cost_api
           push: true
-          tags: ghcr.io/tradestrats1929/trading-strategies/txn-cost-api:latest
+          tags: ghcr.io/tradestrats1929/trading-strategies/txn-cost-api:dev
 
-  # ── Phase 2b: build master UI (conditional) ──────────────────────────────
+  # ── Phase 2b: build master UI for /dev/ base ─────────────────────────────
   build-ui:
-    name: Build master UI (prod)
+    name: Build master UI (dev)
     needs: changes
     if: needs.changes.outputs.ui == 'true'
     runs-on: ubuntu-latest
+    env:
+      VITE_HELLO_API_URL: /dev/api/hello
+      VITE_TXN_COST_API_URL: /dev/api/txn-cost
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -94,17 +96,17 @@ jobs:
         run: npm ci
         working-directory: src/services/typescript/trading-strategies-ui
       - name: Build
-        run: npm run build -- --base=/prod/
+        run: npm run build -- --base=/dev/
         working-directory: src/services/typescript/trading-strategies-ui
       - uses: actions/upload-artifact@v4
         with:
-          name: ui-dist-prod
+          name: ui-dist-dev
           path: src/services/typescript/trading-strategies-ui/dist
           retention-days: 1
 
   # ── Phase 3: deploy to OCI ────────────────────────────────────────────────
   deploy:
-    name: Deploy to OCI (prod)
+    name: Deploy to OCI (dev)
     needs: [changes, build-hello-api, build-txn-cost-api, build-ui]
     if: always() && !cancelled() && !contains(needs.*.result, 'failure')
     runs-on: ubuntu-latest
@@ -114,20 +116,20 @@ jobs:
       - uses: actions/download-artifact@v4
         if: needs.changes.outputs.ui == 'true'
         with:
-          name: ui-dist-prod
+          name: ui-dist-dev
           path: ui-dist
         continue-on-error: true
 
-      # Always push latest docker-compose.prod.yml to server
+      # Always push latest docker-compose.dev.yml to server
       - uses: appleboy/scp-action@v0.1.7
         with:
           host: 140.245.15.238
           username: ubuntu
           key: ${{ secrets.OCI_SSH_PRIVATE_KEY }}
-          source: "docker-compose.prod.yml"
+          source: "docker-compose.dev.yml"
           target: "/opt/trading-strategies/"
 
-      # Push nginx config if infra changed
+      # Push nginx config if infra changed (shared config covers both envs)
       - uses: appleboy/scp-action@v0.1.7
         if: needs.changes.outputs.infra == 'true'
         with:
@@ -138,7 +140,7 @@ jobs:
           target: "/tmp/"
           strip_components: 1
 
-      # Push UI dist if it was built
+      # Push UI dist to /dev/ subfolder
       - uses: appleboy/scp-action@v0.1.7
         if: needs.changes.outputs.ui == 'true'
         with:
@@ -146,10 +148,10 @@ jobs:
           username: ubuntu
           key: ${{ secrets.OCI_SSH_PRIVATE_KEY }}
           source: "ui-dist/"
-          target: "/var/www/trading-strategies-ui/prod/"
+          target: "/var/www/trading-strategies-ui/dev/"
           strip_components: 1
 
-      # SSH: pull new images, restart changed containers, reload nginx
+      # SSH: pull new :dev images, restart changed containers, reload nginx
       - uses: appleboy/ssh-action@v1
         env:
           GHCR_TOKEN:        ${{ secrets.GITHUB_TOKEN }}
@@ -166,18 +168,21 @@ jobs:
 
             echo "$GHCR_TOKEN" | docker login ghcr.io -u tradestrats1929 --password-stdin
 
+            sudo mkdir -p /var/www/trading-strategies-ui/dev /var/www/trading-strategies-ui/prod
+            sudo chown -R ubuntu:ubuntu /var/www/trading-strategies-ui
+
             cd /opt/trading-strategies
 
             if [[ "$HELLO_API_CHANGED" == "true" ]]; then
-              echo "→ Deploying hello_api (prod)"
-              docker compose -f docker-compose.prod.yml pull hello_api
-              docker compose -f docker-compose.prod.yml up -d hello_api
+              echo "→ Deploying hello_api (dev)"
+              docker compose -f docker-compose.dev.yml pull hello_api_dev
+              docker compose -f docker-compose.dev.yml up -d hello_api_dev
             fi
 
             if [[ "$TXN_COST_CHANGED" == "true" ]]; then
-              echo "→ Deploying txn_cost_api (prod)"
-              docker compose -f docker-compose.prod.yml pull txn_cost_api
-              docker compose -f docker-compose.prod.yml up -d txn_cost_api
+              echo "→ Deploying txn_cost_api (dev)"
+              docker compose -f docker-compose.dev.yml pull txn_cost_api_dev
+              docker compose -f docker-compose.dev.yml up -d txn_cost_api_dev
             fi
 
             if [[ "$INFRA_CHANGED" == "true" ]]; then
@@ -193,5 +198,5 @@ jobs:
               fi
             fi
 
-            echo "✓ Prod deploy complete"
-            docker compose -f docker-compose.prod.yml ps
+            echo "✓ Dev deploy complete"
+            docker compose -f docker-compose.dev.yml ps

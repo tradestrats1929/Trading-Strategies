@@ -7,3 +7,4 @@ RUN pip install --no-cache-dir -e src/libs/hello_lib -e src/services/python/hell
 
 ENV APP_ENV=production
 ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
