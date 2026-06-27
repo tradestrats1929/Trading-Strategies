@@ -2,7 +2,6 @@ import { NavLink } from 'react-router-dom'
 
 const SERVICES = [
   { path: '/hello',    label: 'Hello',    api: 'hello' },
-  { path: '/db',       label: 'Database', api: 'db' },
   { path: '/txn-cost', label: 'Txn Cost', api: 'txn-cost' },
 ]
 

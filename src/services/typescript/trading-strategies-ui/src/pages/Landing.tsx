@@ -12,13 +12,6 @@ const SERVICES = [
     color: '#2563eb',
   },
   {
-    path: '/db',
-    label: 'Database',
-    api: 'db',
-    description: 'CRUD items backed by Neon PostgreSQL.',
-    color: '#16a34a',
-  },
-  {
     path: '/txn-cost',
     label: 'Transaction Cost',
     api: 'txn-cost',

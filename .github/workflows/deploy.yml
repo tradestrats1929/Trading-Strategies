@@ -15,7 +15,6 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       hello_api:    ${{ steps.filter.outputs.hello_api }}
-      db_api:       ${{ steps.filter.outputs.db_api }}
       txn_cost_api: ${{ steps.filter.outputs.txn_cost_api }}
       ui:           ${{ steps.filter.outputs.ui }}
       infra:        ${{ steps.filter.outputs.infra }}
@@ -29,10 +28,6 @@ jobs:
               - 'src/libs/hello_lib/**'
               - 'src/services/python/hello_api/**'
               - 'Dockerfile.hello_api'
-            db_api:
-              - 'src/libs/db_helpers/**'
-              - 'src/services/python/db_api/**'
-              - 'Dockerfile.db_api'
             txn_cost_api:
               - 'src/libs/txn_cost/**'
               - 'src/services/python/txn_cost_api/**'
@@ -62,25 +57,6 @@ jobs:
           file: Dockerfile.hello_api
           push: true
           tags: ghcr.io/tradestrats1929/trading-strategies/hello-api:latest
-
-  build-db-api:
-    name: Build db-api image
-    needs: changes
-    if: needs.changes.outputs.db_api == 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-      - uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: Dockerfile.db_api
-          push: true
-          tags: ghcr.io/tradestrats1929/trading-strategies/db-api:latest
 
   build-txn-cost-api:
     name: Build txn-cost-api image
@@ -129,13 +105,12 @@ jobs:
   # ── Phase 3: deploy to OCI ────────────────────────────────────────────────
   deploy:
     name: Deploy to OCI
-    needs: [changes, build-hello-api, build-db-api, build-txn-cost-api, build-ui]
+    needs: [changes, build-hello-api, build-txn-cost-api, build-ui]
     if: always() && !cancelled() && !contains(needs.*.result, 'failure')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      # Download UI dist if it was built this run
       - uses: actions/download-artifact@v4
         if: needs.changes.outputs.ui == 'true'
         with:
@@ -176,20 +151,18 @@ jobs:
       # SSH: pull new images, restart changed containers, reload nginx
       - uses: appleboy/ssh-action@v1
         env:
-          GHCR_TOKEN:          ${{ secrets.GITHUB_TOKEN }}
-          HELLO_API_CHANGED:   ${{ needs.changes.outputs.hello_api }}
-          DB_API_CHANGED:      ${{ needs.changes.outputs.db_api }}
-          TXN_COST_CHANGED:    ${{ needs.changes.outputs.txn_cost_api }}
-          INFRA_CHANGED:       ${{ needs.changes.outputs.infra }}
+          GHCR_TOKEN:        ${{ secrets.GITHUB_TOKEN }}
+          HELLO_API_CHANGED: ${{ needs.changes.outputs.hello_api }}
+          TXN_COST_CHANGED:  ${{ needs.changes.outputs.txn_cost_api }}
+          INFRA_CHANGED:     ${{ needs.changes.outputs.infra }}
         with:
           host: 140.245.15.238
           username: ubuntu
           key: ${{ secrets.OCI_SSH_PRIVATE_KEY }}
-          envs: GHCR_TOKEN,HELLO_API_CHANGED,DB_API_CHANGED,TXN_COST_CHANGED,INFRA_CHANGED
+          envs: GHCR_TOKEN,HELLO_API_CHANGED,TXN_COST_CHANGED,INFRA_CHANGED
           script: |
             set -e
 
-            # Authenticate to GHCR for image pulls
             echo "$GHCR_TOKEN" | docker login ghcr.io -u tradestrats1929 --password-stdin
 
             cd /opt/trading-strategies
@@ -198,12 +171,6 @@ jobs:
               echo "→ Deploying hello_api"
               docker compose pull hello_api
               docker compose up -d hello_api
-            fi
-
-            if [[ "$DB_API_CHANGED" == "true" ]]; then
-              echo "→ Deploying db_api"
-              docker compose pull db_api
-              docker compose up -d db_api
             fi
 
             if [[ "$TXN_COST_CHANGED" == "true" ]]; then
