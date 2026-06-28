@@ -203,22 +203,27 @@ jobs:
             echo "$GHCR_TOKEN" | docker login ghcr.io -u tradestrats1929 --password-stdin
             cd /opt/trading-strategies
 
+            # Remove any orphaned containers occupying prod ports from prior partial deploys
+            for port in 8000 8002 8004; do
+              docker ps -q --filter "publish=$port" | xargs -r docker rm -f
+            done
+
             if [[ "$HELLO_API_CHANGED" == "true" ]]; then
               echo "→ Deploying hello_api (prod)"
               docker compose -f docker-compose.prod.yml pull hello_api
-              docker compose -f docker-compose.prod.yml up -d hello_api
+              docker compose -f docker-compose.prod.yml up -d --force-recreate --no-deps hello_api
             fi
 
             if [[ "$TXN_COST_CHANGED" == "true" ]]; then
               echo "→ Deploying txn_cost_api (prod)"
               docker compose -f docker-compose.prod.yml pull txn_cost_api
-              docker compose -f docker-compose.prod.yml up -d txn_cost_api
+              docker compose -f docker-compose.prod.yml up -d --force-recreate --no-deps txn_cost_api
             fi
 
             if [[ "$SYSTEM_MONITOR_CHANGED" == "true" ]]; then
               echo "→ Deploying system_monitor (prod)"
               docker compose -f docker-compose.prod.yml pull system_monitor
-              docker compose -f docker-compose.prod.yml up -d system_monitor
+              docker compose -f docker-compose.prod.yml up -d --force-recreate --no-deps system_monitor
             fi
 
             if [[ "$INFRA_CHANGED" == "true" ]]; then
