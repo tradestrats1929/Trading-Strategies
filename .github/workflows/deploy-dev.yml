@@ -133,6 +133,7 @@ jobs:
         working-directory: src/services/typescript/trading-strategies-ui
       - name: Write version file
         run: |
+          mkdir -p src/services/typescript/trading-strategies-ui/public
           echo '{"commit":"${{ github.sha }}","branch":"${{ github.head_ref }}"}' \
             > src/services/typescript/trading-strategies-ui/public/version.json
       - name: Build
