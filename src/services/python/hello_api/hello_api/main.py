@@ -1,8 +1,11 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from hello_lib import greet, get_env
+from service_metrics import MetricsMiddleware, metrics_router
 
 app = FastAPI(title="Hello API")
+app.add_middleware(MetricsMiddleware)
+app.include_router(metrics_router)
 
 app.add_middleware(
     CORSMiddleware,

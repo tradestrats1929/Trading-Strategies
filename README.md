@@ -134,28 +134,97 @@ Dev and prod run as **separate Docker containers on separate ports** — they sh
 
 ## Adding a new Python service
 
-1. Create `src/services/python/<name>/` with a FastAPI app
-   - Must include `GET /` (returns endpoint list) and `GET /health`
-2. Create `src/libs/<name>/` if a shared lib is needed; add to `pyproject.toml` workspace
-3. Create `Dockerfile.<name>` at repo root — copy pattern from `Dockerfile.hello_api`
-4. Add service block to **both** `docker-compose.prod.yml` and `docker-compose.dev.yml`:
-   ```yaml
-   # prod (docker-compose.prod.yml) — use port in 8000-8009 range, tag :latest
-   <name>:
-     image: ghcr.io/tradestrats1929/trading-strategies/<name>:latest
-     restart: unless-stopped
-     ports: ["127.0.0.1:<port>:<port>"]
-     command: python -m uvicorn <name>.main:app --host 0.0.0.0 --port <port> --root-path /prod/api/<name>
+### 1. Create the service
 
-   # dev (docker-compose.dev.yml) — use port in 8010-8019 range, tag :dev
-   <name>_dev:
-     image: ghcr.io/tradestrats1929/trading-strategies/<name>:dev
-     restart: unless-stopped
-     ports: ["127.0.0.1:<dev-port>:<dev-port>"]
-     command: python -m uvicorn <name>.main:app --host 0.0.0.0 --port <dev-port> --root-path /dev/api/<name>
-   ```
-5. Add path filter entry in **both** `.github/workflows/deploy.yml` and `deploy-dev.yml`
-6. Add build job (copy `build-hello-api` pattern) in both workflows
-7. Add `/prod/api/<name>/` and `/dev/api/<name>/` proxy blocks in `deploy/nginx.conf`
-8. Add a card in `src/services/typescript/trading-strategies-ui/src/pages/Landing.tsx`
-9. Push to a PR → dev deploys automatically. Merge to `main` → prod deploys.
+```
+src/services/python/<name>/
+├── pyproject.toml          ← add service-metrics as a dependency
+└── <name>/
+    ├── __init__.py
+    └── main.py
+```
+
+`main.py` minimum:
+```python
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from service_metrics import MetricsMiddleware, metrics_router
+
+app = FastAPI(title="<Name> API")
+app.add_middleware(MetricsMiddleware)      # ← required for system_monitor API Inspector
+app.include_router(metrics_router)         # ← exposes GET /metrics and is found by system_monitor
+app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
+
+@app.get("/health")
+def health(): return {"status": "ok"}
+```
+
+### 2. Create a shared lib (optional)
+
+If you need a lib: `src/libs/<name>/` with its own `pyproject.toml`, then add to the root `pyproject.toml` workspace members and reference `{ workspace = true }` in the service's sources.
+
+### 3. Scaffold remaining files
+
+**`Dockerfile.<name>`** — copy `Dockerfile.hello_api`, update the `pip install` line:
+```dockerfile
+RUN pip install --no-cache-dir -e src/libs/service_metrics -e src/services/python/<name>
+ARG GIT_COMMIT=unknown
+ARG GIT_BRANCH=unknown
+ENV SERVICE_NAME=<name>
+ENV GIT_COMMIT=$GIT_COMMIT
+ENV GIT_BRANCH=$GIT_BRANCH
+```
+
+**`docker-compose.prod.yml`** — pick a port in the `800x` range:
+```yaml
+<name>:
+  image: ghcr.io/tradestrats1929/trading-strategies/<name>:latest
+  restart: unless-stopped
+  ports: ["127.0.0.1:<port>:<port>"]
+  command: python -m uvicorn <name>.main:app --host 0.0.0.0 --port <port> --root-path /prod/api/<name>
+```
+
+**`docker-compose.dev.yml`** — pick a dev port in the `801x` range:
+```yaml
+<name>_dev:
+  image: ghcr.io/tradestrats1929/trading-strategies/<name>:dev
+  restart: unless-stopped
+  ports: ["127.0.0.1:<dev-port>:<dev-port>"]
+  command: python -m uvicorn <name>.main:app --host 0.0.0.0 --port <dev-port> --root-path /dev/api/<name>
+```
+
+**`deploy/nginx.conf`** — add two location blocks (prod + dev):
+```nginx
+location /prod/api/<name>/ { proxy_pass http://127.0.0.1:<port>/; ... }
+location /dev/api/<name>/  { proxy_pass http://127.0.0.1:<dev-port>/; ... }
+```
+
+**`.github/workflows/deploy.yml` and `deploy-dev.yml`** — add to `changes` filters and add a `build-<name>` job (copy `build-hello-api` pattern), with `build-args: GIT_COMMIT/GIT_BRANCH`.
+
+**`pyproject.toml`** — add `src/services/python/<name>` to the `[tool.uv.workspace] members` list.
+
+### 4. Wire into system_monitor
+
+In `src/services/python/system_monitor/system_monitor/main.py`, add an entry to `_SERVICES`:
+```python
+{
+    "name": "<name>",
+    "display_name": "<Display Name>",
+    "internal_url": os.getenv("<NAME>_URL", "http://<name>:<port>"),
+},
+```
+
+Also add the env var to both compose files:
+```yaml
+environment:
+  - <NAME>_URL=http://<name>:<port>       # prod
+  - <NAME>_URL=http://<name>_dev:<dev-port>  # dev
+```
+
+### 5. Wire into the UI
+
+Add a card in `src/services/typescript/trading-strategies-ui/src/pages/Landing.tsx` and a route in `App.tsx`.
+
+### 6. Deploy
+
+Push to a PR → dev deploys automatically. Merge to `main` → prod deploys.

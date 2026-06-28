@@ -3,6 +3,7 @@ from decimal import Decimal
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+from service_metrics import MetricsMiddleware, metrics_router
 
 from txn_cost import (
     Direction,
@@ -16,6 +17,8 @@ from txn_cost import (
 )
 
 app = FastAPI(title="Transaction Cost API")
+app.add_middleware(MetricsMiddleware)
+app.include_router(metrics_router)
 
 app.add_middleware(
     CORSMiddleware,

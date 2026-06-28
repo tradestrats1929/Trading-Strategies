@@ -13,10 +13,11 @@ jobs:
     name: Detect changes
     runs-on: ubuntu-latest
     outputs:
-      hello_api:    ${{ steps.filter.outputs.hello_api }}
-      txn_cost_api: ${{ steps.filter.outputs.txn_cost_api }}
-      ui:           ${{ steps.filter.outputs.ui }}
-      infra:        ${{ steps.filter.outputs.infra }}
+      hello_api:      ${{ steps.filter.outputs.hello_api }}
+      txn_cost_api:   ${{ steps.filter.outputs.txn_cost_api }}
+      system_monitor: ${{ steps.filter.outputs.system_monitor }}
+      ui:             ${{ steps.filter.outputs.ui }}
+      infra:          ${{ steps.filter.outputs.infra }}
     steps:
       - uses: actions/checkout@v4
       - uses: dorny/paths-filter@v3
@@ -25,12 +26,18 @@ jobs:
           filters: |
             hello_api:
               - 'src/libs/hello_lib/**'
+              - 'src/libs/service_metrics/**'
               - 'src/services/python/hello_api/**'
               - 'Dockerfile.hello_api'
             txn_cost_api:
               - 'src/libs/txn_cost/**'
+              - 'src/libs/service_metrics/**'
               - 'src/services/python/txn_cost_api/**'
               - 'Dockerfile.txn_cost_api'
+            system_monitor:
+              - 'src/libs/service_metrics/**'
+              - 'src/services/python/system_monitor/**'
+              - 'Dockerfile.system_monitor'
             ui:
               - 'src/services/typescript/trading-strategies-ui/**'
             infra:
@@ -56,6 +63,9 @@ jobs:
           file: Dockerfile.hello_api
           push: true
           tags: ghcr.io/tradestrats1929/trading-strategies/hello-api:dev
+          build-args: |
+            GIT_COMMIT=${{ github.sha }}
+            GIT_BRANCH=${{ github.head_ref }}
 
   build-txn-cost-api:
     name: Build txn-cost-api image (dev)
@@ -75,6 +85,31 @@ jobs:
           file: Dockerfile.txn_cost_api
           push: true
           tags: ghcr.io/tradestrats1929/trading-strategies/txn-cost-api:dev
+          build-args: |
+            GIT_COMMIT=${{ github.sha }}
+            GIT_BRANCH=${{ github.head_ref }}
+
+  build-system-monitor:
+    name: Build system-monitor image (dev)
+    needs: changes
+    if: needs.changes.outputs.system_monitor == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile.system_monitor
+          push: true
+          tags: ghcr.io/tradestrats1929/trading-strategies/system-monitor:dev
+          build-args: |
+            GIT_COMMIT=${{ github.sha }}
+            GIT_BRANCH=${{ github.head_ref }}
 
   # ── Phase 2b: build master UI for /dev/ base ─────────────────────────────
   build-ui:
@@ -85,6 +120,7 @@ jobs:
     env:
       VITE_HELLO_API_URL: /dev/api/hello
       VITE_TXN_COST_API_URL: /dev/api/txn-cost
+      VITE_SYSTEM_MONITOR_API_URL: /dev/api/system-monitor
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -95,6 +131,11 @@ jobs:
       - name: Install deps
         run: npm ci
         working-directory: src/services/typescript/trading-strategies-ui
+      - name: Write version file
+        run: |
+          mkdir -p src/services/typescript/trading-strategies-ui/public
+          echo '{"commit":"${{ github.sha }}","branch":"${{ github.head_ref }}"}' \
+            > src/services/typescript/trading-strategies-ui/public/version.json
       - name: Build
         run: npm run build -- --base=/dev/
         working-directory: src/services/typescript/trading-strategies-ui
@@ -107,7 +148,7 @@ jobs:
   # ── Phase 3: deploy to OCI ────────────────────────────────────────────────
   deploy:
     name: Deploy to OCI (dev)
-    needs: [changes, build-hello-api, build-txn-cost-api, build-ui]
+    needs: [changes, build-hello-api, build-txn-cost-api, build-system-monitor, build-ui]
     if: always() && !cancelled() && !contains(needs.*.result, 'failure')
     runs-on: ubuntu-latest
     steps:
@@ -120,7 +161,6 @@ jobs:
           path: ui-dist
         continue-on-error: true
 
-      # Always push latest docker-compose.dev.yml to server
       - uses: appleboy/scp-action@v0.1.7
         with:
           host: 140.245.15.238
@@ -129,7 +169,6 @@ jobs:
           source: "docker-compose.dev.yml"
           target: "/opt/trading-strategies/"
 
-      # Push nginx config if infra changed (shared config covers both envs)
       - uses: appleboy/scp-action@v0.1.7
         if: needs.changes.outputs.infra == 'true'
         with:
@@ -140,7 +179,6 @@ jobs:
           target: "/tmp/"
           strip_components: 1
 
-      # Push UI dist to /dev/ subfolder
       - uses: appleboy/scp-action@v0.1.7
         if: needs.changes.outputs.ui == 'true'
         with:
@@ -151,21 +189,20 @@ jobs:
           target: "/var/www/trading-strategies-ui/dev/"
           strip_components: 1
 
-      # SSH: pull new :dev images, restart changed containers, reload nginx
       - uses: appleboy/ssh-action@v1
         env:
-          GHCR_TOKEN:        ${{ secrets.GITHUB_TOKEN }}
-          HELLO_API_CHANGED: ${{ needs.changes.outputs.hello_api }}
-          TXN_COST_CHANGED:  ${{ needs.changes.outputs.txn_cost_api }}
-          INFRA_CHANGED:     ${{ needs.changes.outputs.infra }}
+          GHCR_TOKEN:              ${{ secrets.GITHUB_TOKEN }}
+          HELLO_API_CHANGED:       ${{ needs.changes.outputs.hello_api }}
+          TXN_COST_CHANGED:        ${{ needs.changes.outputs.txn_cost_api }}
+          SYSTEM_MONITOR_CHANGED:  ${{ needs.changes.outputs.system_monitor }}
+          INFRA_CHANGED:           ${{ needs.changes.outputs.infra }}
         with:
           host: 140.245.15.238
           username: ubuntu
           key: ${{ secrets.OCI_SSH_PRIVATE_KEY }}
-          envs: GHCR_TOKEN,HELLO_API_CHANGED,TXN_COST_CHANGED,INFRA_CHANGED
+          envs: GHCR_TOKEN,HELLO_API_CHANGED,TXN_COST_CHANGED,SYSTEM_MONITOR_CHANGED,INFRA_CHANGED
           script: |
             set -e
-
             echo "$GHCR_TOKEN" | docker login ghcr.io -u tradestrats1929 --password-stdin
 
             sudo mkdir -p /var/www/trading-strategies-ui/dev /var/www/trading-strategies-ui/prod
@@ -173,16 +210,27 @@ jobs:
 
             cd /opt/trading-strategies
 
+            # Remove any orphaned containers occupying dev ports from prior partial deploys
+            for port in 8010 8012 8014; do
+              docker ps -q --filter "publish=$port" | xargs -r docker rm -f
+            done
+
             if [[ "$HELLO_API_CHANGED" == "true" ]]; then
               echo "→ Deploying hello_api (dev)"
               docker compose -f docker-compose.dev.yml pull hello_api_dev
-              docker compose -f docker-compose.dev.yml up -d hello_api_dev
+              docker compose -f docker-compose.dev.yml up -d --force-recreate --no-deps hello_api_dev
             fi
 
             if [[ "$TXN_COST_CHANGED" == "true" ]]; then
               echo "→ Deploying txn_cost_api (dev)"
               docker compose -f docker-compose.dev.yml pull txn_cost_api_dev
-              docker compose -f docker-compose.dev.yml up -d txn_cost_api_dev
+              docker compose -f docker-compose.dev.yml up -d --force-recreate --no-deps txn_cost_api_dev
+            fi
+
+            if [[ "$SYSTEM_MONITOR_CHANGED" == "true" ]]; then
+              echo "→ Deploying system_monitor (dev)"
+              docker compose -f docker-compose.dev.yml pull system_monitor_dev
+              docker compose -f docker-compose.dev.yml up -d --force-recreate --no-deps system_monitor_dev
             fi
 
             if [[ "$INFRA_CHANGED" == "true" ]]; then
