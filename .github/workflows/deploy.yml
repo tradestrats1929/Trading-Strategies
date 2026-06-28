@@ -14,10 +14,11 @@ jobs:
     name: Detect changes
     runs-on: ubuntu-latest
     outputs:
-      hello_api:    ${{ steps.filter.outputs.hello_api }}
-      txn_cost_api: ${{ steps.filter.outputs.txn_cost_api }}
-      ui:           ${{ steps.filter.outputs.ui }}
-      infra:        ${{ steps.filter.outputs.infra }}
+      hello_api:      ${{ steps.filter.outputs.hello_api }}
+      txn_cost_api:   ${{ steps.filter.outputs.txn_cost_api }}
+      system_monitor: ${{ steps.filter.outputs.system_monitor }}
+      ui:             ${{ steps.filter.outputs.ui }}
+      infra:          ${{ steps.filter.outputs.infra }}
     steps:
       - uses: actions/checkout@v4
       - uses: dorny/paths-filter@v3
@@ -26,12 +27,18 @@ jobs:
           filters: |
             hello_api:
               - 'src/libs/hello_lib/**'
+              - 'src/libs/service_metrics/**'
               - 'src/services/python/hello_api/**'
               - 'Dockerfile.hello_api'
             txn_cost_api:
               - 'src/libs/txn_cost/**'
+              - 'src/libs/service_metrics/**'
               - 'src/services/python/txn_cost_api/**'
               - 'Dockerfile.txn_cost_api'
+            system_monitor:
+              - 'src/libs/service_metrics/**'
+              - 'src/services/python/system_monitor/**'
+              - 'Dockerfile.system_monitor'
             ui:
               - 'src/services/typescript/trading-strategies-ui/**'
             infra:
@@ -57,6 +64,9 @@ jobs:
           file: Dockerfile.hello_api
           push: true
           tags: ghcr.io/tradestrats1929/trading-strategies/hello-api:latest
+          build-args: |
+            GIT_COMMIT=${{ github.sha }}
+            GIT_BRANCH=${{ github.ref_name }}
 
   build-txn-cost-api:
     name: Build txn-cost-api image
@@ -76,6 +86,31 @@ jobs:
           file: Dockerfile.txn_cost_api
           push: true
           tags: ghcr.io/tradestrats1929/trading-strategies/txn-cost-api:latest
+          build-args: |
+            GIT_COMMIT=${{ github.sha }}
+            GIT_BRANCH=${{ github.ref_name }}
+
+  build-system-monitor:
+    name: Build system-monitor image
+    needs: changes
+    if: needs.changes.outputs.system_monitor == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile.system_monitor
+          push: true
+          tags: ghcr.io/tradestrats1929/trading-strategies/system-monitor:latest
+          build-args: |
+            GIT_COMMIT=${{ github.sha }}
+            GIT_BRANCH=${{ github.ref_name }}
 
   # ── Phase 2b: build master UI (conditional) ──────────────────────────────
   build-ui:
@@ -93,6 +128,10 @@ jobs:
       - name: Install deps
         run: npm ci
         working-directory: src/services/typescript/trading-strategies-ui
+      - name: Write version file
+        run: |
+          echo '{"commit":"${{ github.sha }}","branch":"${{ github.ref_name }}"}' \
+            > src/services/typescript/trading-strategies-ui/public/version.json
       - name: Build
         run: npm run build -- --base=/prod/
         working-directory: src/services/typescript/trading-strategies-ui
@@ -105,7 +144,7 @@ jobs:
   # ── Phase 3: deploy to OCI ────────────────────────────────────────────────
   deploy:
     name: Deploy to OCI (prod)
-    needs: [changes, build-hello-api, build-txn-cost-api, build-ui]
+    needs: [changes, build-hello-api, build-txn-cost-api, build-system-monitor, build-ui]
     if: always() && !cancelled() && !contains(needs.*.result, 'failure')
     runs-on: ubuntu-latest
     steps:
@@ -118,7 +157,6 @@ jobs:
           path: ui-dist
         continue-on-error: true
 
-      # Always push latest docker-compose.prod.yml to server
       - uses: appleboy/scp-action@v0.1.7
         with:
           host: 140.245.15.238
@@ -127,7 +165,6 @@ jobs:
           source: "docker-compose.prod.yml"
           target: "/opt/trading-strategies/"
 
-      # Push nginx config if infra changed
       - uses: appleboy/scp-action@v0.1.7
         if: needs.changes.outputs.infra == 'true'
         with:
@@ -138,7 +175,6 @@ jobs:
           target: "/tmp/"
           strip_components: 1
 
-      # Push UI dist if it was built
       - uses: appleboy/scp-action@v0.1.7
         if: needs.changes.outputs.ui == 'true'
         with:
@@ -149,23 +185,21 @@ jobs:
           target: "/var/www/trading-strategies-ui/prod/"
           strip_components: 1
 
-      # SSH: pull new images, restart changed containers, reload nginx
       - uses: appleboy/ssh-action@v1
         env:
-          GHCR_TOKEN:        ${{ secrets.GITHUB_TOKEN }}
-          HELLO_API_CHANGED: ${{ needs.changes.outputs.hello_api }}
-          TXN_COST_CHANGED:  ${{ needs.changes.outputs.txn_cost_api }}
-          INFRA_CHANGED:     ${{ needs.changes.outputs.infra }}
+          GHCR_TOKEN:              ${{ secrets.GITHUB_TOKEN }}
+          HELLO_API_CHANGED:       ${{ needs.changes.outputs.hello_api }}
+          TXN_COST_CHANGED:        ${{ needs.changes.outputs.txn_cost_api }}
+          SYSTEM_MONITOR_CHANGED:  ${{ needs.changes.outputs.system_monitor }}
+          INFRA_CHANGED:           ${{ needs.changes.outputs.infra }}
         with:
           host: 140.245.15.238
           username: ubuntu
           key: ${{ secrets.OCI_SSH_PRIVATE_KEY }}
-          envs: GHCR_TOKEN,HELLO_API_CHANGED,TXN_COST_CHANGED,INFRA_CHANGED
+          envs: GHCR_TOKEN,HELLO_API_CHANGED,TXN_COST_CHANGED,SYSTEM_MONITOR_CHANGED,INFRA_CHANGED
           script: |
             set -e
-
             echo "$GHCR_TOKEN" | docker login ghcr.io -u tradestrats1929 --password-stdin
-
             cd /opt/trading-strategies
 
             if [[ "$HELLO_API_CHANGED" == "true" ]]; then
@@ -178,6 +212,12 @@ jobs:
               echo "→ Deploying txn_cost_api (prod)"
               docker compose -f docker-compose.prod.yml pull txn_cost_api
               docker compose -f docker-compose.prod.yml up -d txn_cost_api
+            fi
+
+            if [[ "$SYSTEM_MONITOR_CHANGED" == "true" ]]; then
+              echo "→ Deploying system_monitor (prod)"
+              docker compose -f docker-compose.prod.yml pull system_monitor
+              docker compose -f docker-compose.prod.yml up -d system_monitor
             fi
 
             if [[ "$INFRA_CHANGED" == "true" ]]; then

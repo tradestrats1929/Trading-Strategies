@@ -20,6 +20,13 @@ const SERVICES = [
     description: 'Indian equity & F&O cost calculator — Zerodha rates, April 2026.',
     color: '#9333ea',
   },
+  {
+    path: '/system-monitor',
+    label: 'System Monitor',
+    api: 'system-monitor',
+    description: 'Live metrics, health, API inspector and resource usage for all services.',
+    color: '#059669',
+  },
 ]
 
 export default function Landing() {

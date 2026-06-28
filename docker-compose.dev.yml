@@ -1,3 +1,5 @@
+name: trading-strategies-dev
+
 services:
   hello_api_dev:
     image: ghcr.io/tradestrats1929/trading-strategies/hello-api:dev
@@ -12,3 +14,15 @@ services:
     ports:
       - "127.0.0.1:8012:8012"
     command: python -m uvicorn txn_cost_api.main:app --host 0.0.0.0 --port 8012 --root-path /dev/api/txn-cost
+
+  system_monitor_dev:
+    image: ghcr.io/tradestrats1929/trading-strategies/system-monitor:dev
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8014:8014"
+    command: python -m uvicorn system_monitor.main:app --host 0.0.0.0 --port 8014 --root-path /dev/api/system-monitor
+    environment:
+      - SERVICE_NAME=system_monitor
+      - HELLO_API_URL=http://hello_api_dev:8010
+      - TXN_COST_API_URL=http://txn_cost_api_dev:8012
+      - SELF_URL=http://system_monitor_dev:8014

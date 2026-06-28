@@ -5,6 +5,8 @@ addopts = "--import-mode=importlib"
 members = [
     "src/libs/hello_lib",
     "src/libs/txn_cost",
+    "src/libs/service_metrics",
     "src/services/python/hello_api",
     "src/services/python/txn_cost_api",
+    "src/services/python/system_monitor",
 ]

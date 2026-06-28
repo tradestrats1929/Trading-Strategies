@@ -3,15 +3,17 @@ import Nav from './components/Nav'
 import Landing from './pages/Landing'
 import Hello from './pages/Hello'
 import TxnCost from './pages/TxnCost'
+import SystemMonitor from './pages/SystemMonitor'
 
 export default function App() {
   return (
     <BrowserRouter basename={import.meta.env.BASE_URL}>
       <Nav />
       <Routes>
-        <Route path="/"         element={<Landing />} />
-        <Route path="/hello"    element={<Hello />} />
-        <Route path="/txn-cost" element={<TxnCost />} />
+        <Route path="/"               element={<Landing />} />
+        <Route path="/hello"          element={<Hello />} />
+        <Route path="/txn-cost"       element={<TxnCost />} />
+        <Route path="/system-monitor" element={<SystemMonitor />} />
       </Routes>
     </BrowserRouter>
   )

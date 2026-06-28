@@ -1,8 +1,9 @@
 import { NavLink } from 'react-router-dom'
 
 const SERVICES = [
-  { path: '/hello',    label: 'Hello',    api: 'hello' },
-  { path: '/txn-cost', label: 'Txn Cost', api: 'txn-cost' },
+  { path: '/hello',          label: 'Hello',    api: 'hello' },
+  { path: '/txn-cost',       label: 'Txn Cost', api: 'txn-cost' },
+  { path: '/system-monitor', label: 'Monitor',  api: 'system-monitor' },
 ]
 
 const isLocal = import.meta.env.VITE_HELLO_API_URL?.includes('localhost')
