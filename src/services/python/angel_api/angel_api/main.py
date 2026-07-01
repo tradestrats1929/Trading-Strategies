@@ -14,7 +14,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from SmartApi import SmartConnect
-from SmartApi.SmartWebSocketV2 import SmartWebSocketV2
+from SmartApi.smartWebSocketV2 import SmartWebSocketV2
 from service_metrics import MetricsMiddleware, metrics_router
 
 # ── Config ─────────────────────────────────────────────────────────────────────
