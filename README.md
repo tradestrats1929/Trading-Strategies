@@ -13,6 +13,8 @@ Monorepo for trading fund infrastructure. Python microservices on Oracle Cloud (
 | hello_api docs | https://trading-strategies.duckdns.org/prod/api/hello/docs |
 | txn_cost_api | https://trading-strategies.duckdns.org/prod/api/txn-cost/ |
 | txn_cost_api docs | https://trading-strategies.duckdns.org/prod/api/txn-cost/docs |
+| angel_api | https://trading-strategies.duckdns.org/prod/api/angel/ |
+| angel_api docs | https://trading-strategies.duckdns.org/prod/api/angel/docs |
 
 ### Dev (deployed on every PR)
 
@@ -23,6 +25,8 @@ Monorepo for trading fund infrastructure. Python microservices on Oracle Cloud (
 | hello_api docs | https://trading-strategies.duckdns.org/dev/api/hello/docs |
 | txn_cost_api | https://trading-strategies.duckdns.org/dev/api/txn-cost/ |
 | txn_cost_api docs | https://trading-strategies.duckdns.org/dev/api/txn-cost/docs |
+| angel_api | https://trading-strategies.duckdns.org/dev/api/angel/ |
+| angel_api docs | https://trading-strategies.duckdns.org/dev/api/angel/docs |
 
 ---
 
@@ -34,6 +38,8 @@ Monorepo for trading fund infrastructure. Python microservices on Oracle Cloud (
 |---|---|---|---|
 | hello_api | `src/services/python/hello_api/` | 8000 | `Dockerfile.hello_api` |
 | txn_cost_api | `src/services/python/txn_cost_api/` | 8002 | `Dockerfile.txn_cost_api` |
+| system_monitor | `src/services/python/system_monitor/` | 8004 | `Dockerfile.system_monitor` |
+| angel_api | `src/services/python/angel_api/` | 8006 | `Dockerfile.angel_api` |
 
 ### Shared libs
 
@@ -129,6 +135,46 @@ Dev and prod run as **separate Docker containers on separate ports** — they sh
 | Secret | Value |
 |---|---|
 | `OCI_SSH_PRIVATE_KEY` | Full contents of the OCI private key file |
+
+---
+
+## Angel One Setup
+
+The `angel_api` service connects to [Angel One SmartAPI](https://smartapi.angelbroking.com). Authentication is fully automated — no daily manual login required.
+
+### 1. Create two apps on Angel One developer portal
+
+1. Log in to https://smartapi.angelbroking.com
+2. Create **two apps** — one for prod, one for dev:
+   - Name: e.g. `trading-strategies-prod` / `trading-strategies-dev`
+   - Redirect URL: `https://trading-strategies.duckdns.org` (placeholder — not used in the login flow)
+3. Copy the **API Key** for each app.
+
+### 2. Enable TOTP on your Angel One account
+
+In the Angel One mobile app: Profile → Security → Enable TOTP. Scan the QR code with an authenticator app and note the **TOTP secret** (the base-32 seed).
+
+### 3. Add credentials to the OCI server
+
+SSH into the OCI server and append to `/opt/trading-strategies/.env`:
+
+```bash
+ANGEL_CLIENT_ID=A123456          # your Angel One client ID
+ANGEL_MPIN=1234                  # your Angel One MPIN (4-digit PIN)
+ANGEL_TOTP_SECRET=BASE32STRING   # TOTP seed from step 2
+ANGEL_API_KEY_PROD=aBcD1234      # prod app API key from step 1
+ANGEL_API_KEY_DEV=xYzW5678       # dev  app API key from step 1
+ANGEL_INTERNAL_SECRET=$(openssl rand -hex 16)   # shared secret for /internal/ endpoints
+```
+
+### 4. Restart the container
+
+```bash
+cd /opt/trading-strategies
+docker compose -f docker-compose.prod.yml up -d --force-recreate angel_api
+```
+
+The service logs in automatically on startup, downloads the Nifty options instrument master, and starts the WebSocket. It re-authenticates itself every day at 8:45 AM IST.
 
 ---
 

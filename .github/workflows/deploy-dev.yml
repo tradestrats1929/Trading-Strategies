@@ -16,6 +16,7 @@ jobs:
       hello_api:      ${{ steps.filter.outputs.hello_api }}
       txn_cost_api:   ${{ steps.filter.outputs.txn_cost_api }}
       system_monitor: ${{ steps.filter.outputs.system_monitor }}
+      angel_api:      ${{ steps.filter.outputs.angel_api }}
       ui:             ${{ steps.filter.outputs.ui }}
       infra:          ${{ steps.filter.outputs.infra }}
     steps:
@@ -38,6 +39,10 @@ jobs:
               - 'src/libs/service_metrics/**'
               - 'src/services/python/system_monitor/**'
               - 'Dockerfile.system_monitor'
+            angel_api:
+              - 'src/libs/service_metrics/**'
+              - 'src/services/python/angel_api/**'
+              - 'Dockerfile.angel_api'
             ui:
               - 'src/services/typescript/trading-strategies-ui/**'
             infra:
@@ -111,6 +116,28 @@ jobs:
             GIT_COMMIT=${{ github.sha }}
             GIT_BRANCH=${{ github.head_ref }}
 
+  build-angel-api:
+    name: Build angel-api image (dev)
+    needs: changes
+    if: needs.changes.outputs.angel_api == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile.angel_api
+          push: true
+          tags: ghcr.io/tradestrats1929/trading-strategies/angel-api:dev
+          build-args: |
+            GIT_COMMIT=${{ github.sha }}
+            GIT_BRANCH=${{ github.head_ref }}
+
   # ── Phase 2b: build master UI for /dev/ base ─────────────────────────────
   build-ui:
     name: Build master UI (dev)
@@ -121,6 +148,7 @@ jobs:
       VITE_HELLO_API_URL: /dev/api/hello
       VITE_TXN_COST_API_URL: /dev/api/txn-cost
       VITE_SYSTEM_MONITOR_API_URL: /dev/api/system-monitor
+      VITE_ANGEL_API_URL: /dev/api/angel
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -148,7 +176,7 @@ jobs:
   # ── Phase 3: deploy to OCI ────────────────────────────────────────────────
   deploy:
     name: Deploy to OCI (dev)
-    needs: [changes, build-hello-api, build-txn-cost-api, build-system-monitor, build-ui]
+    needs: [changes, build-hello-api, build-txn-cost-api, build-system-monitor, build-angel-api, build-ui]
     if: always() && !cancelled() && !contains(needs.*.result, 'failure')
     runs-on: ubuntu-latest
     steps:
@@ -195,12 +223,13 @@ jobs:
           HELLO_API_CHANGED:       ${{ needs.changes.outputs.hello_api }}
           TXN_COST_CHANGED:        ${{ needs.changes.outputs.txn_cost_api }}
           SYSTEM_MONITOR_CHANGED:  ${{ needs.changes.outputs.system_monitor }}
+          ANGEL_API_CHANGED:       ${{ needs.changes.outputs.angel_api }}
           INFRA_CHANGED:           ${{ needs.changes.outputs.infra }}
         with:
           host: 140.245.15.238
           username: ubuntu
           key: ${{ secrets.OCI_SSH_PRIVATE_KEY }}
-          envs: GHCR_TOKEN,HELLO_API_CHANGED,TXN_COST_CHANGED,SYSTEM_MONITOR_CHANGED,INFRA_CHANGED
+          envs: GHCR_TOKEN,HELLO_API_CHANGED,TXN_COST_CHANGED,SYSTEM_MONITOR_CHANGED,ANGEL_API_CHANGED,INFRA_CHANGED
           script: |
             set -e
             echo "$GHCR_TOKEN" | docker login ghcr.io -u tradestrats1929 --password-stdin
@@ -209,11 +238,6 @@ jobs:
             sudo chown -R ubuntu:ubuntu /var/www/trading-strategies-ui
 
             cd /opt/trading-strategies
-
-            # Remove any orphaned containers occupying dev ports from prior partial deploys
-            for port in 8010 8012 8014; do
-              docker ps -q --filter "publish=$port" | xargs -r docker rm -f
-            done
 
             if [[ "$HELLO_API_CHANGED" == "true" ]]; then
               echo "→ Deploying hello_api (dev)"
@@ -232,6 +256,15 @@ jobs:
               docker compose -f docker-compose.dev.yml pull system_monitor_dev
               docker compose -f docker-compose.dev.yml up -d --force-recreate --no-deps system_monitor_dev
             fi
+
+            if [[ "$ANGEL_API_CHANGED" == "true" ]]; then
+              echo "→ Deploying angel_api (dev)"
+              docker compose -f docker-compose.dev.yml pull angel_api_dev
+              docker compose -f docker-compose.dev.yml up -d --force-recreate --no-deps angel_api_dev
+            fi
+
+            # Ensure all services are up (starts any that were stopped without recreating healthy ones)
+            docker compose -f docker-compose.dev.yml up -d
 
             if [[ "$INFRA_CHANGED" == "true" ]]; then
               if [[ -f /tmp/nginx.conf ]]; then
