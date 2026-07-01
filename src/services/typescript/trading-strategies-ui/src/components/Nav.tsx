@@ -4,6 +4,7 @@ const SERVICES = [
   { path: '/hello',          label: 'Hello',    api: 'hello' },
   { path: '/txn-cost',       label: 'Txn Cost', api: 'txn-cost' },
   { path: '/system-monitor', label: 'Monitor',  api: 'system-monitor' },
+  { path: '/angel',          label: 'Angel',    api: 'angel' },
 ]
 
 const isLocal = import.meta.env.VITE_HELLO_API_URL?.includes('localhost')

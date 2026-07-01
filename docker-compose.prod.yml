@@ -26,3 +26,18 @@ services:
       - HELLO_API_URL=http://hello_api:8000
       - TXN_COST_API_URL=http://txn_cost_api:8002
       - SELF_URL=http://system_monitor:8004
+      - ANGEL_API_URL=http://angel_api:8006
+
+  angel_api:
+    image: ghcr.io/tradestrats1929/trading-strategies/angel-api:latest
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8006:8006"
+    command: python -m uvicorn angel_api.main:app --host 0.0.0.0 --port 8006 --root-path /prod/api/angel
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      - SERVICE_NAME=angel_api
+      - APP_ENV=PROD
+      - ANGEL_INTERNAL_SECRET=${ANGEL_INTERNAL_SECRET}

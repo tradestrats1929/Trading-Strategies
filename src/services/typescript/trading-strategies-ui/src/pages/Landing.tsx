@@ -27,6 +27,13 @@ const SERVICES = [
     description: 'Live metrics, health, API inspector and resource usage for all services.',
     color: '#059669',
   },
+  {
+    path: '/angel',
+    label: 'Angel One',
+    api: 'angel',
+    description: 'Live Nifty options instrument list and real-time market data — snapshots and streaming ticks with L2 depth.',
+    color: '#dc2626',
+  },
 ]
 
 export default function Landing() {

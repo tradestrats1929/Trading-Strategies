@@ -27,6 +27,11 @@ _SERVICES = [
         # Self-reference via loopback — service name on the Docker network also works
         "internal_url": os.getenv("SELF_URL", "http://localhost:8004"),
     },
+    {
+        "name": "angel_api",
+        "display_name": "Angel One API",
+        "internal_url": os.getenv("ANGEL_API_URL", "http://angel_api:8006"),
+    },
 ]
 
 _POLL_INTERVAL = int(os.getenv("POLL_INTERVAL_SECONDS", "3"))
