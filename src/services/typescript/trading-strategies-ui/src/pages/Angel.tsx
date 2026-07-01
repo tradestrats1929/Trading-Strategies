@@ -42,6 +42,7 @@ interface Tick {
   high_price_of_the_day?: number
   low_price_of_the_day?: number
   closed_price?: number
+  source?: string
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -50,25 +51,17 @@ const fmtPrice = (p: number | undefined) =>
   p != null ? (p / 100).toFixed(2) : '—'
 
 const fmtTime = (iso: string | null | undefined) =>
-  iso
-    ? new Date(iso).toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour12: false })
-    : '—'
+  iso ? new Date(iso).toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour12: false }) : '—'
 
 const fmtDateTime = (iso: string | null | undefined) =>
-  iso
-    ? new Date(iso).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', hour12: false })
-    : '—'
+  iso ? new Date(iso).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', hour12: false }) : '—'
 
 function Badge({ ok, yes, no }: { ok: boolean; yes: string; no: string }) {
   return (
     <span style={{
-      display: 'inline-block',
-      padding: '0.15rem 0.55rem',
-      borderRadius: 999,
-      fontSize: '0.75rem',
-      fontWeight: 600,
-      background: ok ? '#dcfce7' : '#fee2e2',
-      color: ok ? '#15803d' : '#dc2626',
+      display: 'inline-block', padding: '0.15rem 0.55rem', borderRadius: 999,
+      fontSize: '0.75rem', fontWeight: 600,
+      background: ok ? '#dcfce7' : '#fee2e2', color: ok ? '#15803d' : '#dc2626',
     }}>
       {ok ? yes : no}
     </span>
@@ -78,10 +71,7 @@ function Badge({ ok, yes, no }: { ok: boolean; yes: string; no: string }) {
 // ── Market depth card ─────────────────────────────────────────────────────────
 
 function DepthCard({ token, tick, symbol, onUnsub }: {
-  token: string
-  tick: Tick | null
-  symbol: string
-  onUnsub: () => void
+  token: string; tick: Tick | null; symbol: string; onUnsub?: () => void
 }) {
   const ltp = tick?.last_traded_price
   const buys = tick?.best_5_buy_data ?? []
@@ -90,7 +80,6 @@ function DepthCard({ token, tick, symbol, onUnsub }: {
 
   return (
     <div style={depthCardStyle}>
-      {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.6rem' }}>
         <div>
           <div style={{ fontFamily: 'monospace', fontWeight: 700, fontSize: '0.9rem' }}>{symbol || token}</div>
@@ -98,37 +87,30 @@ function DepthCard({ token, tick, symbol, onUnsub }: {
         </div>
         <div style={{ textAlign: 'right' }}>
           <div style={{ fontSize: '1.3rem', fontWeight: 700, fontFamily: 'monospace', color: '#111' }}>
-            {ltp != null ? `₹${fmtPrice(ltp)}` : '—'}
+            {ltp != null && ltp > 0 ? `₹${fmtPrice(ltp)}` : '—'}
           </div>
           <div style={{ fontSize: '0.7rem', color: '#9ca3af' }}>{fmtTime(tick?.received_at)} IST</div>
         </div>
       </div>
 
-      {/* OHLC row */}
       {tick && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.25rem', marginBottom: '0.6rem', fontSize: '0.72rem' }}>
-          {[
-            ['Open', tick.open_price_of_the_day],
-            ['High', tick.high_price_of_the_day],
-            ['Low', tick.low_price_of_the_day],
-            ['Close', tick.closed_price],
-          ].map(([label, val]) => (
-            <div key={label as string} style={{ background: '#f9fafb', borderRadius: 4, padding: '0.25rem 0.4rem' }}>
+          {([['Open', tick.open_price_of_the_day], ['High', tick.high_price_of_the_day], ['Low', tick.low_price_of_the_day], ['Close', tick.closed_price]] as [string, number | undefined][]).map(([label, val]) => (
+            <div key={label} style={{ background: '#f9fafb', borderRadius: 4, padding: '0.25rem 0.4rem' }}>
               <div style={{ color: '#9ca3af', fontSize: '0.65rem', textTransform: 'uppercase' }}>{label}</div>
-              <div style={{ fontFamily: 'monospace', color: '#374151' }}>{fmtPrice(val as number | undefined)}</div>
+              <div style={{ fontFamily: 'monospace', color: '#374151' }}>{val ? fmtPrice(val) : '—'}</div>
             </div>
           ))}
         </div>
       )}
 
-      {/* Depth table */}
       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.78rem' }}>
         <thead>
           <tr>
             <th style={{ ...dth, textAlign: 'right', color: '#15803d' }}>Qty</th>
             <th style={{ ...dth, textAlign: 'right', color: '#15803d' }}>Orders</th>
             <th style={{ ...dth, textAlign: 'right', color: '#15803d' }}>Bid</th>
-            <th style={{ ...dth, color: '#6b7280', textAlign: 'center', width: 16 }}></th>
+            <th style={{ ...dth, textAlign: 'center', color: '#6b7280', width: 16 }}></th>
             <th style={{ ...dth, color: '#dc2626' }}>Ask</th>
             <th style={{ ...dth, color: '#dc2626' }}>Orders</th>
             <th style={{ ...dth, color: '#dc2626' }}>Qty</th>
@@ -136,8 +118,7 @@ function DepthCard({ token, tick, symbol, onUnsub }: {
         </thead>
         <tbody>
           {Array.from({ length: levels }).map((_, i) => {
-            const b = buys[i]
-            const s = sells[i]
+            const b = buys[i]; const s = sells[i]
             return (
               <tr key={i} style={{ borderBottom: '1px solid #f3f4f6' }}>
                 <td style={{ ...dtd, textAlign: 'right', color: '#15803d', fontFamily: 'monospace' }}>{b?.quantity ?? '—'}</td>
@@ -153,14 +134,13 @@ function DepthCard({ token, tick, symbol, onUnsub }: {
         </tbody>
       </table>
 
-      {/* Volume */}
       {tick?.volume_trade_for_the_day != null && (
         <div style={{ fontSize: '0.72rem', color: '#9ca3af', marginTop: '0.5rem', textAlign: 'right' }}>
           Vol: {tick.volume_trade_for_the_day.toLocaleString('en-IN')}
         </div>
       )}
 
-      <button onClick={onUnsub} style={unsubBtn}>Unsubscribe</button>
+      {onUnsub && <button onClick={onUnsub} style={unsubBtn}>Unsubscribe</button>}
     </div>
   )
 }
@@ -173,8 +153,7 @@ function StatusCard() {
 
   useEffect(() => {
     const fetch_ = () =>
-      fetch(`${API}/health`)
-        .then(r => r.json())
+      fetch(`${API}/health`).then(r => r.json())
         .then(d => { setHealth(d); setError(null) })
         .catch(e => setError(String(e)))
     fetch_()
@@ -194,13 +173,9 @@ function StatusCard() {
           <Stat label="Subscribed tokens"><span style={monoText}>{health.subscribed_count}</span></Stat>
           <Stat label="Login time"><span style={dimText}>{fmtDateTime(health.login_time)}</span></Stat>
           <Stat label="Next re-login"><span style={dimText}>{fmtDateTime(health.next_relogin)}</span></Stat>
-          {health.ws_last_error && (
-            <Stat label="Last error"><span style={{ color: '#dc2626', fontSize: '0.75rem' }}>{health.ws_last_error}</span></Stat>
-          )}
+          {health.ws_last_error && <Stat label="Last error"><span style={{ color: '#dc2626', fontSize: '0.75rem' }}>{health.ws_last_error}</span></Stat>}
         </div>
-      ) : (
-        <p style={{ color: '#9ca3af', fontSize: '0.85rem', margin: 0 }}>Loading…</p>
-      )}
+      ) : <p style={{ color: '#9ca3af', fontSize: '0.85rem', margin: 0 }}>Loading…</p>}
     </div>
   )
 }
@@ -218,7 +193,7 @@ function Stat({ label, children }: { label: string; children: React.ReactNode })
 
 function InstrumentBrowser({ subscribedTokens, onSubscribe }: {
   subscribedTokens: Set<string>
-  onSubscribe: (token: string, symbol: string) => void
+  onSubscribe: (token: string, symbol: string, tick: Tick | null) => void
 }) {
   const [instruments, setInstruments] = useState<Instrument[]>([])
   const [loading, setLoading] = useState(false)
@@ -236,7 +211,6 @@ function InstrumentBrowser({ subscribedTokens, onSubscribe }: {
     setLoading(true)
     const params = new URLSearchParams({ active_only: String(activeOnly) })
     if (optType) params.set('option_type', optType)
-    if (expiry) params.set('expiry', expiry)
     fetch(`${API}/instruments?${params}`)
       .then(r => r.json())
       .then(d => { setInstruments(d); setExpiry(''); setPage(0) })
@@ -260,7 +234,10 @@ function InstrumentBrowser({ subscribedTokens, onSubscribe }: {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ tokens: [token] }),
       })
-      onSubscribe(token, symbol)
+      // Fetch seeded tick immediately — backend populates _latest on subscribe
+      const r = await fetch(`${API}/quotes?tokens=${token}`)
+      const data: Record<string, Tick | null> = await r.json()
+      onSubscribe(token, symbol, data[token] ?? null)
     } finally {
       setSubscribing(prev => { const s = new Set(prev); s.delete(token); return s })
     }
@@ -269,15 +246,9 @@ function InstrumentBrowser({ subscribedTokens, onSubscribe }: {
   return (
     <div style={card}>
       <h2 style={sectionTitle}>Instruments — Nifty Index Options</h2>
-
-      {/* Filters */}
       <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center', marginBottom: '0.75rem' }}>
-        <input
-          placeholder="Search symbol or strike…"
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-          style={inputStyle}
-        />
+        <input placeholder="Search symbol or strike…" value={search}
+          onChange={e => { setSearch(e.target.value); setPage(0) }} style={inputStyle} />
         <select value={optType} onChange={e => { setOptType(e.target.value as '' | 'CE' | 'PE'); setExpiry(''); setPage(0) }} style={inputStyle}>
           <option value="">All types</option>
           <option value="CE">CE</option>
@@ -288,11 +259,7 @@ function InstrumentBrowser({ subscribedTokens, onSubscribe }: {
           {expiries.map(e => <option key={e} value={e}>{e}</option>)}
         </select>
         <label style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.8rem', color: '#374151', cursor: 'pointer' }}>
-          <input
-            type="checkbox"
-            checked={activeOnly}
-            onChange={e => setActiveOnly(e.target.checked)}
-          />
+          <input type="checkbox" checked={activeOnly} onChange={e => { setActiveOnly(e.target.checked); setPage(0) }} />
           Active only
         </label>
         <span style={{ fontSize: '0.75rem', color: '#9ca3af', marginLeft: 'auto' }}>
@@ -300,15 +267,12 @@ function InstrumentBrowser({ subscribedTokens, onSubscribe }: {
         </span>
       </div>
 
-      {/* Table */}
       <div style={{ overflowX: 'auto' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
           <thead style={{ position: 'sticky', top: 0, background: '#f9fafb', zIndex: 1 }}>
             <tr>
-              <th style={th}>Token</th>
-              <th style={th}>Symbol</th>
-              <th style={{ ...th, textAlign: 'right' }}>Strike</th>
-              <th style={th}>Expiry</th>
+              <th style={th}>Token</th><th style={th}>Symbol</th>
+              <th style={{ ...th, textAlign: 'right' }}>Strike</th><th style={th}>Expiry</th>
               <th style={{ ...th, textAlign: 'center' }}>Type</th>
               <th style={{ ...th, textAlign: 'right' }}>Lot</th>
               <th style={{ ...th, textAlign: 'right' }}>Tick</th>
@@ -323,22 +287,17 @@ function InstrumentBrowser({ subscribedTokens, onSubscribe }: {
                   <td style={{ ...td, fontFamily: 'monospace', color: '#9ca3af', fontSize: '0.72rem' }}>{i.token}</td>
                   <td style={{ ...td, fontFamily: 'monospace', fontWeight: 500 }}>{i.symbol}</td>
                   <td style={{ ...td, textAlign: 'right', fontFamily: 'monospace' }}>{i.strike.toFixed(2)}</td>
-                  <td style={{ ...td }}>{i.expiry}</td>
+                  <td style={td}>{i.expiry}</td>
                   <td style={{ ...td, textAlign: 'center', fontWeight: 700, color: i.option_type === 'CE' ? '#2563eb' : '#dc2626' }}>{i.option_type}</td>
                   <td style={{ ...td, textAlign: 'right', fontFamily: 'monospace' }}>{i.lot_size}</td>
                   <td style={{ ...td, textAlign: 'right', fontFamily: 'monospace' }}>{i.tick_size}</td>
-                  <td style={{ ...td }}>
-                    {isSub ? (
-                      <span style={{ fontSize: '0.72rem', color: '#15803d', fontWeight: 600 }}>● Subscribed</span>
-                    ) : (
-                      <button
-                        onClick={() => handleSubscribe(i.token, i.symbol)}
-                        disabled={subscribing.has(i.token)}
-                        style={subBtn}
-                      >
-                        {subscribing.has(i.token) ? '…' : 'Subscribe'}
-                      </button>
-                    )}
+                  <td style={td}>
+                    {isSub
+                      ? <span style={{ fontSize: '0.72rem', color: '#15803d', fontWeight: 600 }}>● Subscribed</span>
+                      : <button onClick={() => handleSubscribe(i.token, i.symbol)} disabled={subscribing.has(i.token)} style={subBtn}>
+                          {subscribing.has(i.token) ? '…' : 'Subscribe'}
+                        </button>
+                    }
                   </td>
                 </tr>
               )
@@ -346,7 +305,6 @@ function InstrumentBrowser({ subscribedTokens, onSubscribe }: {
           </tbody>
         </table>
 
-        {/* Pagination */}
         {totalPages > 1 && (
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: '0.6rem', fontSize: '0.8rem' }}>
             <span style={{ color: '#6b7280' }}>
@@ -358,7 +316,8 @@ function InstrumentBrowser({ subscribedTokens, onSubscribe }: {
               {Array.from({ length: Math.min(totalPages, 7) }, (_, i) => {
                 const p = totalPages <= 7 ? i : Math.max(0, Math.min(page - 3, totalPages - 7)) + i
                 return (
-                  <button key={p} onClick={() => setPage(p)} style={{ ...pgBtn, fontWeight: p === page ? 700 : 400, background: p === page ? '#e5e7eb' : undefined }}>
+                  <button key={p} onClick={() => setPage(p)}
+                    style={{ ...pgBtn, fontWeight: p === page ? 700 : 400, background: p === page ? '#e5e7eb' : undefined }}>
                     {p + 1}
                   </button>
                 )
@@ -373,41 +332,35 @@ function InstrumentBrowser({ subscribedTokens, onSubscribe }: {
   )
 }
 
-// ── Live stream section ───────────────────────────────────────────────────────
+// ── Live stream ───────────────────────────────────────────────────────────────
 
-function LiveStream({ subscribedTokens, symbolMap, onUnsub }: {
+function LiveStream({ subscribedTokens, symbolMap, seedTicks, onUnsub }: {
   subscribedTokens: Set<string>
   symbolMap: Map<string, string>
+  seedTicks: Map<string, Tick>     // ticks seeded from REST on subscribe
   onUnsub: (token: string) => void
 }) {
   const [ticks, setTicks] = useState<Map<string, Tick>>(new Map())
   const [connected, setConnected] = useState(false)
-  const [refreshing, setRefreshing] = useState(false)
   const esRef = useRef<EventSource | null>(null)
+
+  // Merge REST seed ticks in whenever a new one arrives
+  useEffect(() => {
+    setTicks(prev => {
+      let changed = false
+      const next = new Map(prev)
+      for (const [token, tick] of seedTicks.entries()) {
+        if (!prev.has(token)) { next.set(token, tick); changed = true }
+      }
+      return changed ? next : prev
+    })
+  }, [seedTicks])
 
   const connect = useCallback(() => {
     if (esRef.current) esRef.current.close()
     const es = new EventSource(`${API}/stream`)
     esRef.current = es
-    es.onopen = () => {
-      setConnected(true)
-      // Seed with REST snapshot so LTP shows even outside market hours
-      if (subscribedTokens.size > 0) {
-        const tokens = [...subscribedTokens].join(',')
-        fetch(`${API}/quotes?tokens=${encodeURIComponent(tokens)}`)
-          .then(r => r.json())
-          .then((data: Record<string, Tick | null>) => {
-            setTicks(prev => {
-              const next = new Map(prev)
-              for (const [token, tick] of Object.entries(data)) {
-                if (tick && !prev.has(token)) next.set(token, tick)
-              }
-              return next
-            })
-          })
-          .catch(() => {})
-      }
-    }
+    es.onopen = () => setConnected(true)
     es.onmessage = (e) => {
       const tick: Tick = JSON.parse(e.data)
       setTicks(prev => new Map(prev).set(tick.token, tick))
@@ -419,30 +372,7 @@ function LiveStream({ subscribedTokens, symbolMap, onUnsub }: {
     }
   }, [])
 
-  useEffect(() => {
-    connect()
-    return () => esRef.current?.close()
-  }, [connect])
-
-  const handleRefreshLTP = async () => {
-    setRefreshing(true)
-    try {
-      await fetch(`${API}/refresh-quotes`, { method: 'POST' })
-      // Fetch updated snapshots and merge into ticks
-      const tokens = [...subscribedTokens].join(',')
-      const r = await fetch(`${API}/quotes?tokens=${encodeURIComponent(tokens)}`)
-      const data: Record<string, Tick | null> = await r.json()
-      setTicks(prev => {
-        const next = new Map(prev)
-        for (const [token, tick] of Object.entries(data)) {
-          if (tick) next.set(token, tick)
-        }
-        return next
-      })
-    } finally {
-      setRefreshing(false)
-    }
-  }
+  useEffect(() => { connect(); return () => esRef.current?.close() }, [connect])
 
   const handleUnsub = async (token: string) => {
     await fetch(`${API}/subscriptions`, {
@@ -462,41 +392,47 @@ function LiveStream({ subscribedTokens, symbolMap, onUnsub }: {
         <span style={{ fontSize: '0.75rem', color: '#9ca3af' }}>
           {subscribedTokens.size === 0 ? 'No subscriptions — subscribe from Instruments above' : `${subscribedTokens.size} token${subscribedTokens.size !== 1 ? 's' : ''}`}
         </span>
-        {subscribedTokens.size > 0 && (
-          <button onClick={handleRefreshLTP} disabled={refreshing} style={{ ...refreshBtn, marginLeft: 'auto' }}>
-            {refreshing ? 'Fetching…' : '↻ Refresh LTP'}
-          </button>
-        )}
       </div>
 
-      {subscribedTokens.size === 0 ? (
-        <p style={{ color: '#9ca3af', fontSize: '0.85rem', margin: 0 }}>Subscribe to instruments above to see live depth here.</p>
-      ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(420px, 1fr))', gap: '1rem' }}>
-          {[...subscribedTokens].map(token => (
-            <DepthCard
-              key={token}
-              token={token}
-              tick={ticks.get(token) ?? null}
-              symbol={symbolMap.get(token) ?? ''}
-              onUnsub={() => handleUnsub(token)}
-            />
-          ))}
-        </div>
-      )}
+      {subscribedTokens.size === 0
+        ? <p style={{ color: '#9ca3af', fontSize: '0.85rem', margin: 0 }}>Subscribe to instruments above to see live depth here.</p>
+        : <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(420px, 1fr))', gap: '1rem' }}>
+            {[...subscribedTokens].map(token => (
+              <DepthCard key={token} token={token} tick={ticks.get(token) ?? null}
+                symbol={symbolMap.get(token) ?? ''} onUnsub={() => handleUnsub(token)} />
+            ))}
+          </div>
+      }
     </div>
   )
 }
 
-// ── Snapshot section ──────────────────────────────────────────────────────────
+// ── Snapshot ──────────────────────────────────────────────────────────────────
 
-function Snapshot({ subscribedTokens, symbolMap }: {
+function Snapshot({ subscribedTokens, symbolMap, seedTicks }: {
   subscribedTokens: Set<string>
   symbolMap: Map<string, string>
+  seedTicks: Map<string, Tick>
 }) {
   const [ticks, setTicks] = useState<Map<string, Tick>>(new Map())
   const [loading, setLoading] = useState(false)
   const [fetchedAt, setFetchedAt] = useState<string | null>(null)
+
+  // Auto-populate from seed when new tokens subscribe
+  useEffect(() => {
+    setTicks(prev => {
+      let changed = false
+      const next = new Map(prev)
+      for (const [token, tick] of seedTicks.entries()) {
+        if (!prev.has(token)) { next.set(token, tick); changed = true }
+      }
+      // Remove unsubscribed tokens
+      for (const token of prev.keys()) {
+        if (!subscribedTokens.has(token)) { next.delete(token); changed = true }
+      }
+      return changed ? next : prev
+    })
+  }, [seedTicks, subscribedTokens])
 
   const refresh = useCallback(async () => {
     if (subscribedTokens.size === 0) return
@@ -506,14 +442,10 @@ function Snapshot({ subscribedTokens, symbolMap }: {
       const r = await fetch(`${API}/quotes?tokens=${encodeURIComponent(tokens)}`)
       const data: Record<string, Tick | null> = await r.json()
       const m = new Map<string, Tick>()
-      for (const [token, tick] of Object.entries(data)) {
-        if (tick) m.set(token, tick)
-      }
+      for (const [token, tick] of Object.entries(data)) { if (tick) m.set(token, tick) }
       setTicks(m)
       setFetchedAt(new Date().toISOString())
-    } finally {
-      setLoading(false)
-    }
+    } finally { setLoading(false) }
   }, [subscribedTokens])
 
   return (
@@ -523,30 +455,19 @@ function Snapshot({ subscribedTokens, symbolMap }: {
         <button onClick={refresh} disabled={loading || subscribedTokens.size === 0} style={refreshBtn}>
           {loading ? 'Fetching…' : '↻ Refresh'}
         </button>
-        {fetchedAt && (
-          <span style={{ fontSize: '0.75rem', color: '#9ca3af' }}>
-            As of {fmtTime(fetchedAt)} IST
-          </span>
-        )}
+        {fetchedAt && <span style={{ fontSize: '0.75rem', color: '#9ca3af' }}>As of {fmtTime(fetchedAt)} IST</span>}
       </div>
 
-      {subscribedTokens.size === 0 ? (
-        <p style={{ color: '#9ca3af', fontSize: '0.85rem', margin: 0 }}>Subscribe to instruments first, then click Refresh.</p>
-      ) : ticks.size === 0 ? (
-        <p style={{ color: '#9ca3af', fontSize: '0.85rem', margin: 0 }}>Click Refresh to fetch the latest cached values.</p>
-      ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(420px, 1fr))', gap: '1rem' }}>
-          {[...ticks.entries()].map(([token, tick]) => (
-            <DepthCard
-              key={token}
-              token={token}
-              tick={tick}
-              symbol={symbolMap.get(token) ?? ''}
-              onUnsub={() => {}}
-            />
-          ))}
-        </div>
-      )}
+      {subscribedTokens.size === 0
+        ? <p style={{ color: '#9ca3af', fontSize: '0.85rem', margin: 0 }}>Subscribe to instruments above first.</p>
+        : ticks.size === 0
+          ? <p style={{ color: '#9ca3af', fontSize: '0.85rem', margin: 0 }}>Loading…</p>
+          : <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(420px, 1fr))', gap: '1rem' }}>
+              {[...ticks.entries()].map(([token, tick]) => (
+                <DepthCard key={token} token={token} tick={tick} symbol={symbolMap.get(token) ?? ''} />
+              ))}
+            </div>
+      }
     </div>
   )
 }
@@ -556,21 +477,33 @@ function Snapshot({ subscribedTokens, symbolMap }: {
 export default function Angel() {
   const [subscribed, setSubscribed] = useState<Set<string>>(new Set())
   const [symbolMap, setSymbolMap] = useState<Map<string, string>>(new Map())
+  const [seedTicks, setSeedTicks] = useState<Map<string, Tick>>(new Map())
 
+  // Load existing subscriptions + their quotes on mount
   useEffect(() => {
     fetch(`${API}/subscriptions`)
       .then(r => r.json())
-      .then((d: { tokens: string[] }) => setSubscribed(new Set(d.tokens)))
+      .then(async (d: { tokens: string[] }) => {
+        if (!d.tokens.length) return
+        setSubscribed(new Set(d.tokens))
+        const r = await fetch(`${API}/quotes?tokens=${d.tokens.join(',')}`)
+        const data: Record<string, Tick | null> = await r.json()
+        const m = new Map<string, Tick>()
+        for (const [token, tick] of Object.entries(data)) { if (tick) m.set(token, tick) }
+        setSeedTicks(m)
+      })
       .catch(() => {})
   }, [])
 
-  const handleSubscribe = (token: string, symbol: string) => {
+  const handleSubscribe = (token: string, symbol: string, tick: Tick | null) => {
     setSubscribed(prev => new Set(prev).add(token))
     setSymbolMap(prev => new Map(prev).set(token, symbol))
+    if (tick) setSeedTicks(prev => new Map(prev).set(token, tick))
   }
 
   const handleUnsubscribe = (token: string) => {
     setSubscribed(prev => { const s = new Set(prev); s.delete(token); return s })
+    setSeedTicks(prev => { const m = new Map(prev); m.delete(token); return m })
   }
 
   return (
@@ -579,8 +512,8 @@ export default function Angel() {
       <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
         <StatusCard />
         <InstrumentBrowser subscribedTokens={subscribed} onSubscribe={handleSubscribe} />
-        <LiveStream subscribedTokens={subscribed} symbolMap={symbolMap} onUnsub={handleUnsubscribe} />
-        <Snapshot subscribedTokens={subscribed} symbolMap={symbolMap} />
+        <LiveStream subscribedTokens={subscribed} symbolMap={symbolMap} seedTicks={seedTicks} onUnsub={handleUnsubscribe} />
+        <Snapshot subscribedTokens={subscribed} symbolMap={symbolMap} seedTicks={seedTicks} />
       </div>
     </main>
   )
@@ -588,117 +521,17 @@ export default function Angel() {
 
 // ── Styles ───────────────────────────────────────────────────────────────────
 
-const card: React.CSSProperties = {
-  border: '1px solid #e5e7eb',
-  borderRadius: 8,
-  padding: '1rem',
-  background: '#fff',
-}
-
-const sectionTitle: React.CSSProperties = {
-  margin: '0 0 0.75rem',
-  fontSize: '1rem',
-  fontWeight: 700,
-}
-
-const monoText: React.CSSProperties = {
-  fontFamily: 'monospace',
-  fontSize: '0.85rem',
-  color: '#111',
-}
-
-const dimText: React.CSSProperties = {
-  fontSize: '0.8rem',
-  color: '#374151',
-}
-
-const inputStyle: React.CSSProperties = {
-  padding: '0.35rem 0.6rem',
-  border: '1px solid #d1d5db',
-  borderRadius: 4,
-  fontSize: '0.8rem',
-  minWidth: 150,
-  background: '#fff',
-}
-
-const subBtn: React.CSSProperties = {
-  padding: '0.2rem 0.55rem',
-  fontSize: '0.75rem',
-  border: '1px solid #d1d5db',
-  borderRadius: 4,
-  background: '#f9fafb',
-  color: '#374151',
-  cursor: 'pointer',
-  whiteSpace: 'nowrap',
-}
-
-const pgBtn: React.CSSProperties = {
-  padding: '0.2rem 0.5rem',
-  fontSize: '0.78rem',
-  border: '1px solid #d1d5db',
-  borderRadius: 4,
-  background: '#fff',
-  color: '#374151',
-  cursor: 'pointer',
-  minWidth: 28,
-}
-
-const unsubBtn: React.CSSProperties = {
-  marginTop: '0.6rem',
-  width: '100%',
-  padding: '0.3rem',
-  fontSize: '0.75rem',
-  border: '1px solid #fecaca',
-  borderRadius: 4,
-  background: '#fef2f2',
-  color: '#dc2626',
-  cursor: 'pointer',
-}
-
-const refreshBtn: React.CSSProperties = {
-  padding: '0.3rem 0.75rem',
-  fontSize: '0.8rem',
-  border: '1px solid #d1d5db',
-  borderRadius: 4,
-  background: '#f9fafb',
-  color: '#374151',
-  cursor: 'pointer',
-  fontWeight: 600,
-}
-
-const depthCardStyle: React.CSSProperties = {
-  border: '1px solid #e5e7eb',
-  borderRadius: 6,
-  padding: '0.75rem',
-  background: '#fafafa',
-}
-
-const th: React.CSSProperties = {
-  padding: '0.3rem 0.5rem',
-  textAlign: 'left',
-  fontWeight: 600,
-  borderBottom: '1px solid #e5e7eb',
-  color: '#6b7280',
-  fontSize: '0.72rem',
-  textTransform: 'uppercase',
-  letterSpacing: '0.04em',
-}
-
-const td: React.CSSProperties = {
-  padding: '0.3rem 0.5rem',
-  color: '#374151',
-}
-
-const dth: React.CSSProperties = {
-  padding: '0.2rem 0.4rem',
-  fontWeight: 600,
-  fontSize: '0.7rem',
-  borderBottom: '1px solid #e5e7eb',
-  textTransform: 'uppercase',
-  letterSpacing: '0.03em',
-}
-
-const dtd: React.CSSProperties = {
-  padding: '0.25rem 0.4rem',
-  fontSize: '0.78rem',
-}
+const card: React.CSSProperties = { border: '1px solid #e5e7eb', borderRadius: 8, padding: '1rem', background: '#fff' }
+const sectionTitle: React.CSSProperties = { margin: '0 0 0.75rem', fontSize: '1rem', fontWeight: 700 }
+const monoText: React.CSSProperties = { fontFamily: 'monospace', fontSize: '0.85rem', color: '#111' }
+const dimText: React.CSSProperties = { fontSize: '0.8rem', color: '#374151' }
+const inputStyle: React.CSSProperties = { padding: '0.35rem 0.6rem', border: '1px solid #d1d5db', borderRadius: 4, fontSize: '0.8rem', minWidth: 150, background: '#fff' }
+const subBtn: React.CSSProperties = { padding: '0.2rem 0.55rem', fontSize: '0.75rem', border: '1px solid #d1d5db', borderRadius: 4, background: '#f9fafb', color: '#374151', cursor: 'pointer', whiteSpace: 'nowrap' }
+const unsubBtn: React.CSSProperties = { marginTop: '0.6rem', width: '100%', padding: '0.3rem', fontSize: '0.75rem', border: '1px solid #fecaca', borderRadius: 4, background: '#fef2f2', color: '#dc2626', cursor: 'pointer' }
+const refreshBtn: React.CSSProperties = { padding: '0.3rem 0.75rem', fontSize: '0.8rem', border: '1px solid #d1d5db', borderRadius: 4, background: '#f9fafb', color: '#374151', cursor: 'pointer', fontWeight: 600 }
+const pgBtn: React.CSSProperties = { padding: '0.2rem 0.5rem', fontSize: '0.78rem', border: '1px solid #d1d5db', borderRadius: 4, background: '#fff', color: '#374151', cursor: 'pointer', minWidth: 28 }
+const depthCardStyle: React.CSSProperties = { border: '1px solid #e5e7eb', borderRadius: 6, padding: '0.75rem', background: '#fafafa' }
+const th: React.CSSProperties = { padding: '0.3rem 0.5rem', textAlign: 'left', fontWeight: 600, borderBottom: '1px solid #e5e7eb', color: '#6b7280', fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.04em' }
+const td: React.CSSProperties = { padding: '0.3rem 0.5rem', color: '#374151' }
+const dth: React.CSSProperties = { padding: '0.2rem 0.4rem', fontWeight: 600, fontSize: '0.7rem', borderBottom: '1px solid #e5e7eb', textTransform: 'uppercase', letterSpacing: '0.03em' }
+const dtd: React.CSSProperties = { padding: '0.25rem 0.4rem', fontSize: '0.78rem' }
