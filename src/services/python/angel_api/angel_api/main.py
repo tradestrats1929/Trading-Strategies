@@ -3,7 +3,7 @@ import json
 import os
 import threading
 import time
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 from typing import Optional
 
 import httpx
@@ -41,7 +41,7 @@ _state: dict = {
     "ws_last_error": None,
 }
 
-_latest: dict[str, dict] = {}           # token → latest tick
+_latest: dict[str, dict] = {}           # token → latest tick (includes received_at)
 _subscribed: set[str] = set()           # currently subscribed tokens
 _subscribers: list[asyncio.Queue] = []  # SSE client queues
 _instruments: list[dict] = []           # Nifty options instrument master
@@ -100,6 +100,16 @@ async def _relogin_loop():
 
 # ── Instrument master ──────────────────────────────────────────────────────────
 
+def _parse_expiry_date(expiry_str: str) -> Optional[date]:
+    """Parse Angel One expiry strings like '29JAN2026' or '29-JAN-2026'."""
+    for fmt in ("%d%b%Y", "%d-%b-%Y", "%Y-%m-%d"):
+        try:
+            return datetime.strptime(expiry_str.upper(), fmt.upper()).date()
+        except ValueError:
+            continue
+    return None
+
+
 async def _download_instruments():
     global _instruments
     try:
@@ -115,11 +125,14 @@ async def _download_instruments():
                 and item.get("instrumenttype") == "OPTIDX"
             ):
                 sym = item.get("symbol", "")
+                expiry_str = item.get("expiry", "")
+                expiry_date = _parse_expiry_date(expiry_str)
                 nifty_opts.append({
                     "token": item["token"],
                     "symbol": sym,
                     "strike": float(item.get("strike", 0)) / 100,  # stored as paise * 100
-                    "expiry": item.get("expiry", ""),
+                    "expiry": expiry_str,
+                    "expiry_date": expiry_date.isoformat() if expiry_date else None,
                     "option_type": "CE" if sym.endswith("CE") else "PE" if sym.endswith("PE") else "",
                     "lot_size": int(item.get("lotsize", 0)),
                     "tick_size": float(item.get("tick_size", 0.05)),
@@ -144,6 +157,7 @@ def _ws_on_data(wsapp, message, data_type, continue_flag):
     token = str(message.get("token", ""))
     if not token:
         return
+    message["received_at"] = datetime.now(tz=pytz.utc).isoformat()
     _latest[token] = message
     if _loop and _subscribers:
         payload = json.dumps({"token": token, **message}, default=str)
@@ -242,8 +256,15 @@ def list_instruments(
     option_type: str = Query("", description="CE or PE"),
     strike_min: float = Query(0, description="Minimum strike"),
     strike_max: float = Query(0, description="Maximum strike (0 = no limit)"),
+    active_only: bool = Query(True, description="Exclude expired instruments"),
 ) -> list[dict]:
+    today = date.today()
     result = _instruments
+    if active_only:
+        result = [
+            i for i in result
+            if i.get("expiry_date") and date.fromisoformat(i["expiry_date"]) >= today
+        ]
     if search:
         q = search.upper()
         result = [i for i in result if q in i["symbol"]]
@@ -266,11 +287,7 @@ class TokensRequest(BaseModel):
 
 @app.get("/subscriptions")
 def get_subscriptions() -> dict:
-    subs = []
-    for token in _subscribed:
-        entry = {"token": token, "latest": _latest.get(token)}
-        subs.append(entry)
-    return {"subscribed": subs}
+    return {"tokens": list(_subscribed)}
 
 
 @app.post("/subscriptions")
@@ -291,6 +308,15 @@ def unsubscribe(body: TokensRequest) -> dict:
         _subscribed.discard(t)
         _latest.pop(t, None)
     return {"subscribed": list(_subscribed)}
+
+
+# ── Snapshot (public) ──────────────────────────────────────────────────────────
+
+@app.get("/quotes")
+def quotes(tokens: str = Query(..., description="Comma-separated token list")) -> dict:
+    """Return latest cached tick for each token. No streaming — point-in-time snapshot."""
+    token_list = [t.strip() for t in tokens.split(",") if t.strip()]
+    return {t: _latest.get(t) for t in token_list}
 
 
 # ── SSE stream ─────────────────────────────────────────────────────────────────
