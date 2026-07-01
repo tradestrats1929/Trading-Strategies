@@ -226,6 +226,8 @@ function InstrumentBrowser({ subscribedTokens, onSubscribe }: {
   const [optType, setOptType] = useState<'' | 'CE' | 'PE'>('')
   const [expiry, setExpiry] = useState('')
   const [activeOnly, setActiveOnly] = useState(true)
+  const [page, setPage] = useState(0)
+  const PAGE_SIZE = 10
   const [subscribing, setSubscribing] = useState<Set<string>>(new Set())
 
   const expiries = [...new Set(instruments.map(i => i.expiry))].sort()
@@ -237,16 +239,18 @@ function InstrumentBrowser({ subscribedTokens, onSubscribe }: {
     if (expiry) params.set('expiry', expiry)
     fetch(`${API}/instruments?${params}`)
       .then(r => r.json())
-      .then(d => { setInstruments(d); setExpiry('') })
+      .then(d => { setInstruments(d); setExpiry(''); setPage(0) })
       .finally(() => setLoading(false))
   }, [optType, activeOnly])
 
-  const filtered = search
-    ? instruments.filter(i =>
-        i.symbol.toLowerCase().includes(search.toLowerCase()) ||
-        String(Math.round(i.strike)).includes(search)
-      )
-    : expiry ? instruments.filter(i => i.expiry === expiry) : instruments
+  const filtered = instruments.filter(i => {
+    if (expiry && i.expiry !== expiry) return false
+    if (!search) return true
+    return i.symbol.toLowerCase().includes(search.toLowerCase()) ||
+      String(Math.round(i.strike)).includes(search)
+  })
+  const totalPages = Math.ceil(filtered.length / PAGE_SIZE)
+  const pageItems = filtered.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE)
 
   const handleSubscribe = async (token: string, symbol: string) => {
     setSubscribing(prev => new Set(prev).add(token))
@@ -274,12 +278,12 @@ function InstrumentBrowser({ subscribedTokens, onSubscribe }: {
           onChange={e => setSearch(e.target.value)}
           style={inputStyle}
         />
-        <select value={optType} onChange={e => { setOptType(e.target.value as '' | 'CE' | 'PE'); setExpiry('') }} style={inputStyle}>
+        <select value={optType} onChange={e => { setOptType(e.target.value as '' | 'CE' | 'PE'); setExpiry(''); setPage(0) }} style={inputStyle}>
           <option value="">All types</option>
           <option value="CE">CE</option>
           <option value="PE">PE</option>
         </select>
-        <select value={expiry} onChange={e => setExpiry(e.target.value)} style={inputStyle}>
+        <select value={expiry} onChange={e => { setExpiry(e.target.value); setPage(0) }} style={inputStyle}>
           <option value="">All expiries</option>
           {expiries.map(e => <option key={e} value={e}>{e}</option>)}
         </select>
@@ -297,7 +301,7 @@ function InstrumentBrowser({ subscribedTokens, onSubscribe }: {
       </div>
 
       {/* Table */}
-      <div style={{ overflowX: 'auto', maxHeight: 380, overflowY: 'auto' }}>
+      <div style={{ overflowX: 'auto' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
           <thead style={{ position: 'sticky', top: 0, background: '#f9fafb', zIndex: 1 }}>
             <tr>
@@ -312,7 +316,7 @@ function InstrumentBrowser({ subscribedTokens, onSubscribe }: {
             </tr>
           </thead>
           <tbody>
-            {filtered.slice(0, 300).map(i => {
+            {pageItems.map(i => {
               const isSub = subscribedTokens.has(i.token)
               return (
                 <tr key={i.token} style={{ borderBottom: '1px solid #f3f4f6', background: isSub ? '#f0fdf4' : undefined }}>
@@ -341,10 +345,28 @@ function InstrumentBrowser({ subscribedTokens, onSubscribe }: {
             })}
           </tbody>
         </table>
-        {filtered.length > 300 && (
-          <p style={{ fontSize: '0.75rem', color: '#9ca3af', padding: '0.5rem 0' }}>
-            Showing 300 of {filtered.length}. Use search or filters to narrow down.
-          </p>
+
+        {/* Pagination */}
+        {totalPages > 1 && (
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: '0.6rem', fontSize: '0.8rem' }}>
+            <span style={{ color: '#6b7280' }}>
+              {page * PAGE_SIZE + 1}–{Math.min((page + 1) * PAGE_SIZE, filtered.length)} of {filtered.length}
+            </span>
+            <div style={{ display: 'flex', gap: '0.25rem' }}>
+              <button onClick={() => setPage(0)} disabled={page === 0} style={pgBtn}>«</button>
+              <button onClick={() => setPage(p => p - 1)} disabled={page === 0} style={pgBtn}>‹</button>
+              {Array.from({ length: Math.min(totalPages, 7) }, (_, i) => {
+                const p = totalPages <= 7 ? i : Math.max(0, Math.min(page - 3, totalPages - 7)) + i
+                return (
+                  <button key={p} onClick={() => setPage(p)} style={{ ...pgBtn, fontWeight: p === page ? 700 : 400, background: p === page ? '#e5e7eb' : undefined }}>
+                    {p + 1}
+                  </button>
+                )
+              })}
+              <button onClick={() => setPage(p => p + 1)} disabled={page >= totalPages - 1} style={pgBtn}>›</button>
+              <button onClick={() => setPage(totalPages - 1)} disabled={page >= totalPages - 1} style={pgBtn}>»</button>
+            </div>
+          </div>
         )}
       </div>
     </div>
@@ -564,6 +586,17 @@ const subBtn: React.CSSProperties = {
   color: '#374151',
   cursor: 'pointer',
   whiteSpace: 'nowrap',
+}
+
+const pgBtn: React.CSSProperties = {
+  padding: '0.2rem 0.5rem',
+  fontSize: '0.78rem',
+  border: '1px solid #d1d5db',
+  borderRadius: 4,
+  background: '#fff',
+  color: '#374151',
+  cursor: 'pointer',
+  minWidth: 28,
 }
 
 const unsubBtn: React.CSSProperties = {

@@ -100,13 +100,27 @@ async def _relogin_loop():
 
 # ── Instrument master ──────────────────────────────────────────────────────────
 
+_MONTH = {
+    'JAN': 1, 'FEB': 2, 'MAR': 3, 'APR': 4, 'MAY': 5, 'JUN': 6,
+    'JUL': 7, 'AUG': 8, 'SEP': 9, 'OCT': 10, 'NOV': 11, 'DEC': 12,
+}
+
 def _parse_expiry_date(expiry_str: str) -> Optional[date]:
-    """Parse Angel One expiry strings like '29JAN2026' or '29-JAN-2026'."""
-    for fmt in ("%d%b%Y", "%d-%b-%Y", "%Y-%m-%d"):
-        try:
-            return datetime.strptime(expiry_str.upper(), fmt.upper()).date()
-        except ValueError:
-            continue
+    """Parse Angel One expiry strings like '28DEC2027'."""
+    s = expiry_str.upper().strip().replace('-', '')
+    # DDMMMYYYY — e.g. 28DEC2027
+    if len(s) == 9 and s[:2].isdigit() and s[2:5].isalpha() and s[5:].isdigit():
+        m = _MONTH.get(s[2:5])
+        if m:
+            try:
+                return date(int(s[5:]), m, int(s[:2]))
+            except ValueError:
+                pass
+    # ISO fallback YYYY-MM-DD
+    try:
+        return date.fromisoformat(expiry_str)
+    except ValueError:
+        pass
     return None
 
 
