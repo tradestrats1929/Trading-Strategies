@@ -382,13 +382,32 @@ function LiveStream({ subscribedTokens, symbolMap, onUnsub }: {
 }) {
   const [ticks, setTicks] = useState<Map<string, Tick>>(new Map())
   const [connected, setConnected] = useState(false)
+  const [refreshing, setRefreshing] = useState(false)
   const esRef = useRef<EventSource | null>(null)
 
   const connect = useCallback(() => {
     if (esRef.current) esRef.current.close()
     const es = new EventSource(`${API}/stream`)
     esRef.current = es
-    es.onopen = () => setConnected(true)
+    es.onopen = () => {
+      setConnected(true)
+      // Seed with REST snapshot so LTP shows even outside market hours
+      if (subscribedTokens.size > 0) {
+        const tokens = [...subscribedTokens].join(',')
+        fetch(`${API}/quotes?tokens=${encodeURIComponent(tokens)}`)
+          .then(r => r.json())
+          .then((data: Record<string, Tick | null>) => {
+            setTicks(prev => {
+              const next = new Map(prev)
+              for (const [token, tick] of Object.entries(data)) {
+                if (tick && !prev.has(token)) next.set(token, tick)
+              }
+              return next
+            })
+          })
+          .catch(() => {})
+      }
+    }
     es.onmessage = (e) => {
       const tick: Tick = JSON.parse(e.data)
       setTicks(prev => new Map(prev).set(tick.token, tick))
@@ -404,6 +423,26 @@ function LiveStream({ subscribedTokens, symbolMap, onUnsub }: {
     connect()
     return () => esRef.current?.close()
   }, [connect])
+
+  const handleRefreshLTP = async () => {
+    setRefreshing(true)
+    try {
+      await fetch(`${API}/refresh-quotes`, { method: 'POST' })
+      // Fetch updated snapshots and merge into ticks
+      const tokens = [...subscribedTokens].join(',')
+      const r = await fetch(`${API}/quotes?tokens=${encodeURIComponent(tokens)}`)
+      const data: Record<string, Tick | null> = await r.json()
+      setTicks(prev => {
+        const next = new Map(prev)
+        for (const [token, tick] of Object.entries(data)) {
+          if (tick) next.set(token, tick)
+        }
+        return next
+      })
+    } finally {
+      setRefreshing(false)
+    }
+  }
 
   const handleUnsub = async (token: string) => {
     await fetch(`${API}/subscriptions`, {
@@ -423,6 +462,11 @@ function LiveStream({ subscribedTokens, symbolMap, onUnsub }: {
         <span style={{ fontSize: '0.75rem', color: '#9ca3af' }}>
           {subscribedTokens.size === 0 ? 'No subscriptions — subscribe from Instruments above' : `${subscribedTokens.size} token${subscribedTokens.size !== 1 ? 's' : ''}`}
         </span>
+        {subscribedTokens.size > 0 && (
+          <button onClick={handleRefreshLTP} disabled={refreshing} style={{ ...refreshBtn, marginLeft: 'auto' }}>
+            {refreshing ? 'Fetching…' : '↻ Refresh LTP'}
+          </button>
+        )}
       </div>
 
       {subscribedTokens.size === 0 ? (

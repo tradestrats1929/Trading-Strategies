@@ -47,11 +47,12 @@ _subscribers: list[asyncio.Queue] = []  # SSE client queues
 _instruments: list[dict] = []           # Nifty options instrument master
 _sws: Optional[SmartWebSocketV2] = None
 _loop: Optional[asyncio.AbstractEventLoop] = None
+_api: Optional[SmartConnect] = None    # reused for REST market data calls
 
 # ── Authentication ─────────────────────────────────────────────────────────────
 
 def _login_sync() -> bool:
-    global _sws
+    global _sws, _api
     if not all([ANGEL_API_KEY, ANGEL_CLIENT_ID, ANGEL_MPIN, ANGEL_TOTP_SECRET]):
         return False
     try:
@@ -68,10 +69,47 @@ def _login_sync() -> bool:
             "refresh_token": data["refreshToken"],
             "login_time": datetime.now(tz=pytz.utc).isoformat(),
         })
+        _api = api
         return True
     except Exception as exc:
         _state["ws_last_error"] = str(exc)
         return False
+
+
+def _fetch_rest_quotes_sync(tokens: list[str]) -> None:
+    """Seed _latest with REST market data for the given tokens (works after market close)."""
+    if not _api or not tokens:
+        return
+    try:
+        result = _api.getMarketData("FULL", {"NFO": tokens})
+        fetched = (result or {}).get("data", {}).get("fetched", [])
+        now = datetime.now(tz=pytz.utc).isoformat()
+        for item in fetched:
+            token = str(item.get("symbolToken", ""))
+            if not token:
+                continue
+            # REST prices are in rupees; multiply by 100 to match WS paise convention
+            def p(key: str) -> int:
+                v = item.get(key, 0) or 0
+                return int(float(v) * 100)
+            tick = {
+                "token": token,
+                "last_traded_price": p("ltp"),
+                "open_price_of_the_day": p("open"),
+                "high_price_of_the_day": p("high"),
+                "low_price_of_the_day": p("low"),
+                "closed_price": p("close"),
+                "volume_trade_for_the_day": item.get("volume", 0),
+                "best_5_buy_data": [],
+                "best_5_sell_data": [],
+                "received_at": now,
+                "source": "rest",
+            }
+            # Only overwrite if no live WS tick has arrived yet
+            if token not in _latest or _latest[token].get("source") == "rest":
+                _latest[token] = tick
+    except Exception as exc:
+        _state["ws_last_error"] = f"rest quote fetch failed: {exc}"
 
 
 async def _login():
@@ -310,6 +348,9 @@ def subscribe(body: TokensRequest) -> dict:
     if new and _sws and _state["ws_connected"]:
         _sws.subscribe("angel_api", 3, [{"exchangeType": 2, "tokens": new}])
     _subscribed.update(body.tokens)
+    # Seed LTP from REST so UI shows data even outside market hours
+    if new:
+        _fetch_rest_quotes_sync(new)
     return {"subscribed": list(_subscribed)}
 
 
@@ -322,6 +363,18 @@ def unsubscribe(body: TokensRequest) -> dict:
         _subscribed.discard(t)
         _latest.pop(t, None)
     return {"subscribed": list(_subscribed)}
+
+
+# ── REST quote refresh ─────────────────────────────────────────────────────────
+
+@app.post("/refresh-quotes")
+def refresh_quotes() -> dict:
+    """Re-fetch LTP/OHLC for all subscribed tokens via REST (useful outside market hours)."""
+    tokens = list(_subscribed)
+    if not tokens:
+        return {"refreshed": 0}
+    _fetch_rest_quotes_sync(tokens)
+    return {"refreshed": len(tokens), "tokens": tokens}
 
 
 # ── Snapshot (public) ──────────────────────────────────────────────────────────
