@@ -231,11 +231,6 @@ jobs:
             echo "$GHCR_TOKEN" | docker login ghcr.io -u tradestrats1929 --password-stdin
             cd /opt/trading-strategies
 
-            # Remove any orphaned containers occupying prod ports from prior partial deploys
-            for port in 8000 8002 8004 8006; do
-              docker ps -q --filter "publish=$port" | xargs -r docker rm -f
-            done
-
             if [[ "$HELLO_API_CHANGED" == "true" ]]; then
               echo "→ Deploying hello_api (prod)"
               docker compose -f docker-compose.prod.yml pull hello_api
@@ -272,6 +267,9 @@ jobs:
                 exit 1
               fi
             fi
+
+            # Ensure all services are up (starts any that were stopped without recreating healthy ones)
+            docker compose -f docker-compose.prod.yml up -d
 
             echo "✓ Prod deploy complete"
             docker compose -f docker-compose.prod.yml ps
